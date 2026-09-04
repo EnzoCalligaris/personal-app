@@ -42,7 +42,8 @@ enum TipoNotificacao {
 }
 
 model User {
-  id        String   @id @default(uuid())
+  // Mesmo id do usuário no Supabase Auth (auth.users.id) - não gerado pelo Prisma.
+  id        String   @id
   email     String   @unique
   name      String
   role      Role
@@ -63,27 +64,27 @@ model User {
 }
 
 model PersonalProfile {
-  id        String  @id @default(uuid())
-  userId    String  @unique
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bio       String?
-  cref      String? // registro profissional
+  id     String  @id @default(uuid())
+  userId String  @unique
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio    String?
+  cref   String? // registro profissional
 
-  alunos          AlunoProfile[]
-  exercicios      Exercicio[]
-  treinos         Treino[]
+  alunos           AlunoProfile[]
+  exercicios       Exercicio[]
+  treinos          Treino[]
   disponibilidades Disponibilidade[]
-  agendamentos    Agendamento[]
-  avaliacoes      Avaliacao[]
-  feedbacks       Feedback[]
+  agendamentos     Agendamento[]
+  avaliacoes       Avaliacao[]
+  feedbacks        Feedback[]
 
   @@map("personal_profiles")
 }
 
 model AlunoProfile {
-  id         String   @id @default(uuid())
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String           @id @default(uuid())
+  userId     String           @unique
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   personalId String?
   personal   PersonalProfile? @relation(fields: [personalId], references: [id], onDelete: SetNull)
 
@@ -97,48 +98,52 @@ model AlunoProfile {
   avaliacoes   Avaliacao[]
   feedbacks    Feedback[]
 
+  @@index([personalId])
   @@map("aluno_profiles")
 }
 
 model Exercicio {
-  id             String   @id @default(uuid())
-  personalId     String
-  personal       PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
-  nome           String
-  grupoMuscular  String
-  descricao      String?
-  videoUrl       String?
-  imagemUrl      String?
-  createdAt      DateTime @default(now())
+  id            String          @id @default(uuid())
+  personalId    String
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  nome          String
+  grupoMuscular String
+  descricao     String?
+  videoUrl      String?
+  imagemUrl     String?
+  createdAt     DateTime        @default(now())
 
   treinoExercicios TreinoExercicio[]
 
+  @@index([personalId])
   @@map("exercicios")
 }
 
 model Treino {
-  id         String   @id @default(uuid())
-  personalId String
-  personal   PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
-  alunoId    String
-  aluno      AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  nome       String
-  diaSemana  DiaSemana
+  id          String          @id @default(uuid())
+  personalId  String
+  personal    PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  alunoId     String
+  aluno       AlunoProfile    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  nome        String
+  diaSemana   DiaSemana
   observacoes String?
-  ativo      Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  ativo       Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   exercicios TreinoExercicio[]
   historico  HistoricoTreino[]
 
+  @@index([personalId])
+  @@index([alunoId, diaSemana])
   @@map("treinos")
 }
 
 model TreinoExercicio {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   treinoId    String
-  treino      Treino   @relation(fields: [treinoId], references: [id], onDelete: Cascade)
+  treino      Treino    @relation(fields: [treinoId], references: [id], onDelete: Cascade)
   exercicioId String
   exercicio   Exercicio @relation(fields: [exercicioId], references: [id], onDelete: Cascade)
   ordem       Int
@@ -148,82 +153,94 @@ model TreinoExercicio {
   descansoSeg Int?
   observacoes String?
 
+  @@unique([treinoId, ordem])
+  @@index([exercicioId])
   @@map("treino_exercicios")
 }
 
 model HistoricoTreino {
-  id            String   @id @default(uuid())
-  treinoId      String
-  treino        Treino   @relation(fields: [treinoId], references: [id], onDelete: Cascade)
-  alunoId       String
-  aluno         AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  dataExecucao  DateTime @default(now())
-  concluido     Boolean  @default(true)
-  observacoes   String?
+  id           String       @id @default(uuid())
+  treinoId     String
+  treino       Treino       @relation(fields: [treinoId], references: [id], onDelete: Cascade)
+  alunoId      String
+  aluno        AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  dataExecucao DateTime     @default(now())
+  concluido    Boolean      @default(true)
+  observacoes  String?
 
+  @@index([treinoId])
+  @@index([alunoId, dataExecucao])
   @@map("historico_treinos")
 }
 
 model Disponibilidade {
-  id          String    @id @default(uuid())
-  personalId  String
-  personal    PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
-  diaSemana   DiaSemana
-  horaInicio  String // "08:00"
-  horaFim     String // "18:00"
-  duracaoMin  Int       @default(60)
+  id         String          @id @default(uuid())
+  personalId String
+  personal   PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  diaSemana  DiaSemana
+  horaInicio String // "08:00"
+  horaFim    String // "18:00"
+  duracaoMin Int             @default(60)
 
+  @@unique([personalId, diaSemana, horaInicio])
   @@map("disponibilidades")
 }
 
 model Agendamento {
-  id          String   @id @default(uuid())
+  id          String            @id @default(uuid())
   personalId  String
-  personal    PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  personal    PersonalProfile   @relation(fields: [personalId], references: [id], onDelete: Cascade)
   alunoId     String
-  aluno       AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  aluno       AlunoProfile      @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   data        DateTime
   horaInicio  String
   horaFim     String
   status      StatusAgendamento @default(AGENDADO)
   observacoes String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
+  @@index([personalId, data])
+  @@index([alunoId, data])
   @@map("agendamentos")
 }
 
 model Avaliacao {
-  id                 String   @id @default(uuid())
-  personalId         String
-  personal           PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
-  alunoId            String
-  aluno              AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  data               DateTime @default(now())
-  peso               Float?
-  percentualGordura  Float?
-  massaMagra         Float?
-  massaGorda         Float?
-  imc                Float?
-  medidas            Json? // { peito, cintura, quadril, braco, coxa, ... }
-  fotos              String[] @default([])
+  id                String          @id @default(uuid())
+  personalId        String
+  personal          PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  alunoId           String
+  aluno             AlunoProfile    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  data              DateTime        @default(now())
+  peso              Float?
+  percentualGordura Float?
+  massaMagra        Float?
+  massaGorda        Float?
+  imc               Float?
+  medidas           Json? // { peito, cintura, quadril, braco, coxa, ... }
+  fotos             String[]        @default([])
 
   feedbacks Feedback[]
 
+  @@index([personalId])
+  @@index([alunoId, data])
   @@map("avaliacoes")
 }
 
 model Feedback {
-  id          String   @id @default(uuid())
+  id          String          @id @default(uuid())
   personalId  String
   personal    PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
   alunoId     String
-  aluno       AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  aluno       AlunoProfile    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   avaliacaoId String?
-  avaliacao   Avaliacao? @relation(fields: [avaliacaoId], references: [id], onDelete: SetNull)
+  avaliacao   Avaliacao?      @relation(fields: [avaliacaoId], references: [id], onDelete: SetNull)
   texto       String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime        @default(now())
 
+  @@index([personalId])
+  @@index([alunoId, createdAt])
+  @@index([avaliacaoId])
   @@map("feedbacks")
 }
 
@@ -238,5 +255,6 @@ model Notificacao {
   link      String?
   createdAt DateTime        @default(now())
 
+  @@index([userId, lida])
   @@map("notificacoes")
 }

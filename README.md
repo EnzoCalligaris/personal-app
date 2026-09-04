@@ -12,9 +12,13 @@ Plataforma web para Personal Trainers e seus alunos: gestão de alunos, treinos 
 
 ## Setup local
 
-1. Copie `.env.example` para `.env` e preencha com as credenciais do seu projeto Supabase:
-   - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
-   - `DATABASE_URL` (connection pooling) e `DIRECT_URL` (conexão direta, usada pelas migrations)
+1. Copie `.env.example` para `.env`.
+   - Para desenvolver **sem** Supabase configurado ainda, aponte `DATABASE_URL`/`DIRECT_URL` para um
+     Postgres local (veja "Banco local com Docker" abaixo). O app funciona normalmente nesse modo —
+     autenticação fica inativa até o Supabase ser configurado (Fase 2).
+   - Para usar Supabase, preencha `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` /
+     `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (connection pooling, porta 6543) e `DIRECT_URL`
+     (conexão direta, porta 5432, usada pelo Prisma CLI).
 2. Instale as dependências:
    ```bash
    npm install
@@ -31,6 +35,20 @@ Plataforma web para Personal Trainers e seus alunos: gestão de alunos, treinos 
 
 Abra [http://localhost:3000](http://localhost:3000).
 
+### Banco local com Docker
+
+```bash
+docker run -d --name personal-app-db \
+  -e POSTGRES_USER=personal -e POSTGRES_PASSWORD=personal -e POSTGRES_DB=personal_app \
+  -p 55432:5432 postgres:16-alpine
+```
+
+No `.env`:
+```
+DATABASE_URL="postgresql://personal:personal@localhost:55432/personal_app"
+DIRECT_URL="postgresql://personal:personal@localhost:55432/personal_app"
+```
+
 ## Scripts
 
 | Script              | Descrição                                  |
@@ -43,6 +61,7 @@ Abra [http://localhost:3000](http://localhost:3000).
 | `npm run db:migrate` | Cria/aplica migrations em desenvolvimento    |
 | `npm run db:push`    | Sincroniza o schema com o banco sem migration|
 | `npm run db:studio`  | Abre o Prisma Studio                         |
+| `npm run test`       | Testes de integração do schema (vitest)      |
 
 ## Estrutura
 
@@ -55,6 +74,7 @@ src/lib/prisma.ts       Cliente Prisma (adapter-pg)
 src/lib/supabase/       Clientes Supabase (browser, server, middleware)
 src/proxy.ts            Proxy (antigo middleware) - refresh de sessão e proteção de rotas
 src/types/               Tipos compartilhados
+tests/                   Testes de integração (schema/relacionamentos Prisma)
 ```
 
 > Nota: este projeto usa Next.js 16, que introduziu mudanças relevantes desde versões anteriores
