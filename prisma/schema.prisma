@@ -1,0 +1,242 @@
+// Prisma schema - Plataforma Personal Trainer x Aluno
+// Banco: PostgreSQL (Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  PERSONAL
+  ALUNO
+}
+
+enum DiaSemana {
+  DOMINGO
+  SEGUNDA
+  TERCA
+  QUARTA
+  QUINTA
+  SEXTA
+  SABADO
+}
+
+enum StatusAgendamento {
+  AGENDADO
+  CANCELADO
+  REALIZADO
+  REAGENDADO
+}
+
+enum TipoNotificacao {
+  NOVO_TREINO
+  AGENDAMENTO_CONFIRMADO
+  AGENDAMENTO_CANCELADO
+  AGENDAMENTO_REAGENDADO
+  NOVA_AVALIACAO
+  NOVO_FEEDBACK
+  LEMBRETE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      Role
+  avatarUrl String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Perfil Personal Trainer
+  personalProfile PersonalProfile?
+
+  // Perfil Aluno
+  alunoProfile AlunoProfile?
+
+  notificacoes Notificacao[]
+
+  @@map("users")
+}
+
+model PersonalProfile {
+  id        String  @id @default(uuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio       String?
+  cref      String? // registro profissional
+
+  alunos          AlunoProfile[]
+  exercicios      Exercicio[]
+  treinos         Treino[]
+  disponibilidades Disponibilidade[]
+  agendamentos    Agendamento[]
+  avaliacoes      Avaliacao[]
+  feedbacks       Feedback[]
+
+  @@map("personal_profiles")
+}
+
+model AlunoProfile {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personalId String?
+  personal   PersonalProfile? @relation(fields: [personalId], references: [id], onDelete: SetNull)
+
+  dataNascimento DateTime?
+  altura         Float? // cm
+  objetivo       String?
+
+  treinos      Treino[]
+  historico    HistoricoTreino[]
+  agendamentos Agendamento[]
+  avaliacoes   Avaliacao[]
+  feedbacks    Feedback[]
+
+  @@map("aluno_profiles")
+}
+
+model Exercicio {
+  id             String   @id @default(uuid())
+  personalId     String
+  personal       PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  nome           String
+  grupoMuscular  String
+  descricao      String?
+  videoUrl       String?
+  imagemUrl      String?
+  createdAt      DateTime @default(now())
+
+  treinoExercicios TreinoExercicio[]
+
+  @@map("exercicios")
+}
+
+model Treino {
+  id         String   @id @default(uuid())
+  personalId String
+  personal   PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  alunoId    String
+  aluno      AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  nome       String
+  diaSemana  DiaSemana
+  observacoes String?
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  exercicios TreinoExercicio[]
+  historico  HistoricoTreino[]
+
+  @@map("treinos")
+}
+
+model TreinoExercicio {
+  id          String   @id @default(uuid())
+  treinoId    String
+  treino      Treino   @relation(fields: [treinoId], references: [id], onDelete: Cascade)
+  exercicioId String
+  exercicio   Exercicio @relation(fields: [exercicioId], references: [id], onDelete: Cascade)
+  ordem       Int
+  series      Int
+  repeticoes  String // ex: "8-12" ou "15"
+  carga       String? // ex: "20kg" ou "peso corporal"
+  descansoSeg Int?
+  observacoes String?
+
+  @@map("treino_exercicios")
+}
+
+model HistoricoTreino {
+  id            String   @id @default(uuid())
+  treinoId      String
+  treino        Treino   @relation(fields: [treinoId], references: [id], onDelete: Cascade)
+  alunoId       String
+  aluno         AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  dataExecucao  DateTime @default(now())
+  concluido     Boolean  @default(true)
+  observacoes   String?
+
+  @@map("historico_treinos")
+}
+
+model Disponibilidade {
+  id          String    @id @default(uuid())
+  personalId  String
+  personal    PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  diaSemana   DiaSemana
+  horaInicio  String // "08:00"
+  horaFim     String // "18:00"
+  duracaoMin  Int       @default(60)
+
+  @@map("disponibilidades")
+}
+
+model Agendamento {
+  id          String   @id @default(uuid())
+  personalId  String
+  personal    PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  alunoId     String
+  aluno       AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  data        DateTime
+  horaInicio  String
+  horaFim     String
+  status      StatusAgendamento @default(AGENDADO)
+  observacoes String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("agendamentos")
+}
+
+model Avaliacao {
+  id                 String   @id @default(uuid())
+  personalId         String
+  personal           PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  alunoId            String
+  aluno              AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  data               DateTime @default(now())
+  peso               Float?
+  percentualGordura  Float?
+  massaMagra         Float?
+  massaGorda         Float?
+  imc                Float?
+  medidas            Json? // { peito, cintura, quadril, braco, coxa, ... }
+  fotos              String[] @default([])
+
+  feedbacks Feedback[]
+
+  @@map("avaliacoes")
+}
+
+model Feedback {
+  id          String   @id @default(uuid())
+  personalId  String
+  personal    PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  alunoId     String
+  aluno       AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  avaliacaoId String?
+  avaliacao   Avaliacao? @relation(fields: [avaliacaoId], references: [id], onDelete: SetNull)
+  texto       String
+  createdAt   DateTime @default(now())
+
+  @@map("feedbacks")
+}
+
+model Notificacao {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo      TipoNotificacao
+  titulo    String
+  mensagem  String
+  lida      Boolean         @default(false)
+  link      String?
+  createdAt DateTime        @default(now())
+
+  @@map("notificacoes")
+}
