@@ -118,10 +118,177 @@ async function main() {
     });
   }
 
+  await seedDadosDemo();
+
   console.log("\nUsuários de teste (senha para todos):", SENHA_PADRAO);
   for (const u of USERS) {
     console.log(`  ${u.role.padEnd(8)} ${u.email}${u.personalEmail ? `  (personal: ${u.personalEmail})` : ""}`);
   }
+}
+
+const DIAS_SEMANA = [
+  "DOMINGO",
+  "SEGUNDA",
+  "TERCA",
+  "QUARTA",
+  "QUINTA",
+  "SEXTA",
+  "SABADO",
+] as const;
+
+function emDias(dias: number, hora = 12) {
+  const d = new Date();
+  d.setDate(d.getDate() + dias);
+  d.setHours(hora, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Dados de demonstração para o ambiente de desenvolvimento: exercícios,
+ * treinos, agendamentos, execuções e avaliações, para o dashboard ter
+ * conteúdo real. Idempotente - não recria se o Personal já tiver exercícios.
+ */
+async function seedDadosDemo() {
+  const personal = await prisma.personalProfile.findFirst({
+    where: { user: { email: "personal1@teste.com" } },
+    include: { alunos: { include: { user: { select: { email: true } } } } },
+  });
+
+  if (!personal) return;
+
+  const jaTemDados = await prisma.exercicio.count({ where: { personalId: personal.id } });
+  if (jaTemDados > 0) {
+    console.log("\n- dados de demonstração já existem (pulando)");
+    return;
+  }
+
+  const ana = personal.alunos.find((a) => a.user.email === "aluno1@teste.com");
+  const bruno = personal.alunos.find((a) => a.user.email === "aluno2@teste.com");
+  if (!ana || !bruno) return;
+
+  const hoje = DIAS_SEMANA[new Date().getDay()];
+  const amanha = DIAS_SEMANA[emDias(1).getDay()];
+
+  const exercicios = await Promise.all(
+    [
+      { nome: "Supino reto", grupoMuscular: "Peito" },
+      { nome: "Agachamento livre", grupoMuscular: "Pernas" },
+      { nome: "Remada curvada", grupoMuscular: "Costas" },
+      { nome: "Desenvolvimento militar", grupoMuscular: "Ombros" },
+    ].map((exercicio) => prisma.exercicio.create({ data: { ...exercicio, personalId: personal.id } }))
+  );
+
+  // Treinos: um para hoje (aparece em "treinos de hoje") e um para amanhã.
+  await prisma.treino.create({
+    data: {
+      personalId: personal.id,
+      alunoId: ana.id,
+      nome: "Treino A · Superior",
+      diaSemana: hoje,
+      exercicios: {
+        create: [
+          { exercicioId: exercicios[0].id, ordem: 1, series: 4, repeticoes: "8-10", carga: "40kg" },
+          { exercicioId: exercicios[2].id, ordem: 2, series: 4, repeticoes: "10-12", carga: "35kg" },
+          { exercicioId: exercicios[3].id, ordem: 3, series: 3, repeticoes: "12", carga: "15kg" },
+        ],
+      },
+    },
+  });
+
+  await prisma.treino.create({
+    data: {
+      personalId: personal.id,
+      alunoId: ana.id,
+      nome: "Treino B · Inferior",
+      diaSemana: amanha,
+      exercicios: {
+        create: [
+          { exercicioId: exercicios[1].id, ordem: 1, series: 4, repeticoes: "10", carga: "60kg" },
+        ],
+      },
+    },
+  });
+
+  const treinoBruno = await prisma.treino.create({
+    data: {
+      personalId: personal.id,
+      alunoId: bruno.id,
+      nome: "Full body",
+      diaSemana: hoje,
+      exercicios: {
+        create: [
+          { exercicioId: exercicios[1].id, ordem: 1, series: 3, repeticoes: "12", carga: "50kg" },
+          { exercicioId: exercicios[0].id, ordem: 2, series: 3, repeticoes: "10", carga: "45kg" },
+        ],
+      },
+    },
+  });
+
+  await prisma.agendamento.createMany({
+    data: [
+      {
+        personalId: personal.id,
+        alunoId: ana.id,
+        data: emDias(0, 8),
+        horaInicio: "08:00",
+        horaFim: "09:00",
+        status: "AGENDADO",
+      },
+      {
+        personalId: personal.id,
+        alunoId: bruno.id,
+        data: emDias(0, 18),
+        horaInicio: "18:00",
+        horaFim: "19:00",
+        status: "REAGENDADO",
+      },
+      {
+        personalId: personal.id,
+        alunoId: ana.id,
+        data: emDias(1, 8),
+        horaInicio: "08:00",
+        horaFim: "09:00",
+        status: "AGENDADO",
+      },
+      {
+        personalId: personal.id,
+        alunoId: bruno.id,
+        data: emDias(3, 18),
+        horaInicio: "18:00",
+        horaFim: "19:00",
+        status: "AGENDADO",
+      },
+    ],
+  });
+
+  await prisma.historicoTreino.create({
+    data: { treinoId: treinoBruno.id, alunoId: bruno.id, dataExecucao: emDias(-2), concluido: true },
+  });
+
+  await prisma.avaliacao.createMany({
+    data: [
+      {
+        personalId: personal.id,
+        alunoId: ana.id,
+        data: emDias(-3),
+        peso: 62.4,
+        percentualGordura: 24.1,
+        massaMagra: 47.4,
+        imc: 22.1,
+      },
+      {
+        personalId: personal.id,
+        alunoId: bruno.id,
+        data: emDias(-12),
+        peso: 81.2,
+        percentualGordura: 18.5,
+        massaMagra: 66.2,
+        imc: 25.4,
+      },
+    ],
+  });
+
+  console.log("\n+ dados de demonstração criados (exercícios, treinos, agenda e avaliações)");
 }
 
 main()

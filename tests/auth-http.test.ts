@@ -3,27 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { resetDb } from "./db";
 import { createAluno, createPersonal } from "./factories";
 
-const BASE_URL = "http://127.0.0.1:3100";
-const SENHA = "Teste@12345";
-
-function cookieHeaderFrom(res: Response): string {
-  const cookies = res.headers.getSetCookie();
-  return cookies.map((c) => c.split(";")[0]).join("; ");
-}
-
-async function login(email: string, password: string) {
-  const res = await fetch(`${BASE_URL}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  const body = await res.json();
-  return { status: res.status, body, cookie: cookieHeaderFrom(res) };
-}
-
-function get(path: string, cookie?: string) {
-  return fetch(`${BASE_URL}${path}`, { headers: cookie ? { Cookie: cookie } : {} });
-}
+import { BASE_URL, cookieHeaderFrom, get, login, SENHA } from "./http";
 
 let personal1: Awaited<ReturnType<typeof createPersonal>>;
 let personal2: Awaited<ReturnType<typeof createPersonal>>;

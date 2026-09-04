@@ -100,6 +100,11 @@ async function run() {
           await shot(page, `${BASE_URL}${target.path}`, prefix(target.name));
         }
 
+        // Personal sem dados: mostra os estados vazios do dashboard.
+        await page.request.post(`${BASE_URL}/api/auth/logout`);
+        await login(page, "personal2@teste.com", "Teste@12345");
+        await shot(page, `${BASE_URL}/personal`, prefix("personal-overview-vazio"));
+
         await page.request.post(`${BASE_URL}/api/auth/logout`);
         await login(page, "aluno1@teste.com", "Teste@12345");
         for (const target of ALUNO_PAGES) {

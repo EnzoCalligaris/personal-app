@@ -130,6 +130,33 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
 
+## Dashboard do Personal (Fase 4)
+
+`/personal` consome `GET /api/personal/dashboard` (client-side), então os estados de carregamento,
+vazio e erro são reais — com botão de tentar novamente. Todo o conteúdo é filtrado pelo
+`personalId` do Personal autenticado.
+
+O endpoint devolve, em uma única chamada:
+
+| Bloco | Conteúdo |
+| ----- | -------- |
+| `resumo` | total de alunos, alunos ativos, treinos de hoje, próximos agendamentos e avaliações recentes |
+| `agendaDoDia` | agendamentos de hoje com horário, aluno, status e treino do dia |
+| `proximosAgendamentos` | agendamentos a partir de amanhã (cancelados ficam de fora) |
+| `alunosRecentes` | últimos alunos vinculados, com treino programado e última execução |
+| `avaliacoesRecentes` | últimas bioimpedâncias com peso e percentual de gordura |
+
+Definições usadas nas métricas (também exibidas na tela):
+- **Alunos ativos**: têm treino ativo *ou* atividade (agendamento/execução) nos últimos 30 dias.
+- **Treinos de hoje**: treinos ativos programados para o dia da semana atual.
+- **Próximos agendamentos**: futuros e não cancelados, incluindo os de hoje que ainda vão acontecer.
+- **Tipo de treino** de um agendamento: derivado do treino ativo daquele aluno para o dia da semana
+  da sessão (o schema não liga agendamento a treino diretamente).
+
+`npm run db:seed` também cria dados de demonstração (exercícios, treinos, agenda, execução e
+avaliações) para `personal1@teste.com`, para o dashboard ter conteúdo real em desenvolvimento.
+`personal2@teste.com` fica sem dados, o que é útil para ver os estados vazios.
+
 ## Fundação visual (Fase 3)
 
 Identidade **Pulse**: neutros grafite levemente frios com verde-elétrico como cor de energia.

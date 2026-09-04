@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import type { DiaSemana, StatusAgendamento } from "@/types";
 import { createTestAdminClient } from "./supabaseAdmin";
 
 let counter = 0;
@@ -64,6 +65,75 @@ export async function createExercicio(personalId: string, overrides?: { nome?: s
       personalId,
       nome: overrides?.nome ?? "Supino reto",
       grupoMuscular: "Peito",
+    },
+  });
+}
+
+export async function createTreino(
+  personalId: string,
+  alunoId: string,
+  overrides?: { nome?: string; diaSemana?: DiaSemana; ativo?: boolean }
+) {
+  return prisma.treino.create({
+    data: {
+      personalId,
+      alunoId,
+      nome: overrides?.nome ?? "Treino de teste",
+      diaSemana: overrides?.diaSemana ?? "SEGUNDA",
+      ativo: overrides?.ativo ?? true,
+    },
+  });
+}
+
+export async function createAgendamento(
+  personalId: string,
+  alunoId: string,
+  overrides?: {
+    data?: Date;
+    horaInicio?: string;
+    horaFim?: string;
+    status?: StatusAgendamento;
+  }
+) {
+  return prisma.agendamento.create({
+    data: {
+      personalId,
+      alunoId,
+      data: overrides?.data ?? new Date(),
+      horaInicio: overrides?.horaInicio ?? "08:00",
+      horaFim: overrides?.horaFim ?? "09:00",
+      status: overrides?.status ?? "AGENDADO",
+    },
+  });
+}
+
+export async function createAvaliacao(
+  personalId: string,
+  alunoId: string,
+  overrides?: { data?: Date; peso?: number; percentualGordura?: number }
+) {
+  return prisma.avaliacao.create({
+    data: {
+      personalId,
+      alunoId,
+      data: overrides?.data ?? new Date(),
+      peso: overrides?.peso ?? 70,
+      percentualGordura: overrides?.percentualGordura ?? 20,
+    },
+  });
+}
+
+export async function createHistorico(
+  treinoId: string,
+  alunoId: string,
+  overrides?: { dataExecucao?: Date }
+) {
+  return prisma.historicoTreino.create({
+    data: {
+      treinoId,
+      alunoId,
+      dataExecucao: overrides?.dataExecucao ?? new Date(),
+      concluido: true,
     },
   });
 }
