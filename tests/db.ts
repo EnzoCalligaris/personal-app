@@ -20,4 +20,9 @@ export async function resetDb() {
       "users"
     CASCADE;
   `);
+
+  // Os usuários de teste (factories.ts) também existem em auth.users
+  // (necessário pela FK users.id -> auth.users.id). O TRUNCATE acima não
+  // alcança esse schema, então limpamos aqui os que usam o domínio de teste.
+  await prisma.$executeRawUnsafe(`DELETE FROM auth.users WHERE email LIKE '%@example.com';`);
 }

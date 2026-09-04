@@ -35,22 +35,42 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/registro");
-  const isProtectedRoute = request.nextUrl.pathname.startsWith("/personal") ||
-    request.nextUrl.pathname.startsWith("/aluno");
+  const { pathname } = request.nextUrl;
+  const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/registro");
+  const isPersonalRoute = pathname.startsWith("/personal");
+  const isAlunoRoute = pathname.startsWith("/aluno");
 
-  if (!user && isProtectedRoute) {
+  if (!user && (isPersonalRoute || isAlunoRoute)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
   if (user && isAuthRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = roleHome(user.app_metadata?.role);
     return NextResponse.redirect(url);
   }
 
+  // Controle de acesso por role nas páginas: um Aluno não acessa /personal/**
+  // e um Personal não acessa /aluno/** (as rotas de API aplicam a mesma
+  // regra de forma independente, via requirePersonal/requireAluno).
+  if (user) {
+    const role = user.app_metadata?.role;
+    if (isPersonalRoute && role !== "PERSONAL") {
+      return NextResponse.redirect(new URL(roleHome(role), request.url));
+    }
+    if (isAlunoRoute && role !== "ALUNO") {
+      return NextResponse.redirect(new URL(roleHome(role), request.url));
+    }
+  }
+
   return supabaseResponse;
+}
+
+function roleHome(role: unknown) {
+  if (role === "PERSONAL") return "/personal";
+  if (role === "ALUNO") return "/aluno";
+  return "/";
 }

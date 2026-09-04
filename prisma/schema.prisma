@@ -43,7 +43,7 @@ enum TipoNotificacao {
 
 model User {
   // Mesmo id do usuário no Supabase Auth (auth.users.id) - não gerado pelo Prisma.
-  id        String   @id
+  id        String   @id @db.Uuid
   email     String   @unique
   name      String
   role      Role
@@ -65,7 +65,7 @@ model User {
 
 model PersonalProfile {
   id     String  @id @default(uuid())
-  userId String  @unique
+  userId String  @unique @db.Uuid
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   bio    String?
   cref   String? // registro profissional
@@ -83,7 +83,7 @@ model PersonalProfile {
 
 model AlunoProfile {
   id         String           @id @default(uuid())
-  userId     String           @unique
+  userId     String           @unique @db.Uuid
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   personalId String?
   personal   PersonalProfile? @relation(fields: [personalId], references: [id], onDelete: SetNull)
@@ -246,7 +246,7 @@ model Feedback {
 
 model Notificacao {
   id        String          @id @default(uuid())
-  userId    String
+  userId    String          @db.Uuid
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   tipo      TipoNotificacao
   titulo    String

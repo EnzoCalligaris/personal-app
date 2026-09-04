@@ -12,7 +12,7 @@ CREATE TYPE "TipoNotificacao" AS ENUM ('NOVO_TREINO', 'AGENDAMENTO_CONFIRMADO', 
 
 -- CreateTable
 CREATE TABLE "users" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "role" "Role" NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE "users" (
 -- CreateTable
 CREATE TABLE "personal_profiles" (
     "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "userId" UUID NOT NULL,
     "bio" TEXT,
     "cref" TEXT,
 
@@ -37,7 +37,7 @@ CREATE TABLE "personal_profiles" (
 -- CreateTable
 CREATE TABLE "aluno_profiles" (
     "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "userId" UUID NOT NULL,
     "personalId" TEXT,
     "dataNascimento" TIMESTAMP(3),
     "altura" DOUBLE PRECISION,
@@ -162,7 +162,7 @@ CREATE TABLE "feedbacks" (
 -- CreateTable
 CREATE TABLE "notificacoes" (
     "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "userId" UUID NOT NULL,
     "tipo" "TipoNotificacao" NOT NULL,
     "titulo" TEXT NOT NULL,
     "mensagem" TEXT NOT NULL,
@@ -289,3 +289,9 @@ ALTER TABLE "feedbacks" ADD CONSTRAINT "feedbacks_avaliacaoId_fkey" FOREIGN KEY 
 
 -- AddForeignKey
 ALTER TABLE "notificacoes" ADD CONSTRAINT "notificacoes_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey (Supabase Auth)
+-- Vincula public.users ao usuário correspondente em auth.users. Se o usuário
+-- for removido do Auth, a linha em public.users (e o perfil Personal/Aluno)
+-- é removida em cascata.
+ALTER TABLE "users" ADD CONSTRAINT "users_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
