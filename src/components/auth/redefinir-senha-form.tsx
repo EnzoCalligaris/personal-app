@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/lib/toast";
 import { redefinirSenhaSchema, type RedefinirSenhaInput } from "@/lib/validations/auth";
 
 export function RedefinirSenhaForm() {
@@ -37,20 +39,41 @@ export function RedefinirSenhaForm() {
 
       toast.success("Senha redefinida com sucesso!");
       router.push("/login");
+    } catch {
+      toast.error("Falha de conexão", { description: "Verifique sua internet e tente novamente." });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
       <div className="flex flex-col gap-2">
         <Label htmlFor="password">Nova senha</Label>
-        <Input id="password" type="password" autoComplete="new-password" {...register("password")} />
-        {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+        <Input
+          id="password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="Mínimo de 8 caracteres"
+          aria-invalid={!!errors.password}
+          {...register("password")}
+        />
+        {errors.password && (
+          <p role="alert" className="text-sm text-destructive">
+            {errors.password.message}
+          </p>
+        )}
       </div>
-      <Button type="submit" disabled={loading}>
-        {loading ? "Salvando..." : "Redefinir senha"}
+
+      <Button type="submit" size="lg" disabled={loading} className="w-full">
+        {loading ? (
+          <>
+            <Spinner size="sm" />
+            Salvando...
+          </>
+        ) : (
+          "Redefinir senha"
+        )}
       </Button>
     </form>
   );

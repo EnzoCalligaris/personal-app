@@ -99,6 +99,7 @@ Nesse modo a migration que vincula `users` a `auth.users` (Supabase) falha, ent�
 | `npm run supabase:stop`  | Para a stack local do Supabase           |
 | `npm run supabase:status`| Reimprime URLs/keys da stack local       |
 | `npm run test`       | Testes automatizados (schema, autorização, auth HTTP) |
+| `npm run screenshots`| Captura a app em mobile/tablet/desktop (claro e escuro) |
 
 ## Estrutura
 
@@ -128,6 +129,25 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > anteriores (ex.: `middleware.ts` → `proxy.ts` com export `proxy`; conexão do banco sai do
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
+
+## Fundação visual (Fase 3)
+
+Identidade **Pulse**: neutros grafite levemente frios com verde-elétrico como cor de energia.
+Títulos em Outfit, texto em Geist, raios generosos (14px de base), sombras suaves em camadas e
+microanimações curtas (`active:scale`, elevação no hover, entrada com `fade-up`).
+
+- **Catálogo vivo** em [`/design-system`](http://localhost:3000/design-system): cores, tipografia,
+  botões, badges, campos, avatares, abas, cards, métricas, toasts, modal e todos os estados.
+- **Componentes** em `src/components/ui/`: `Button`, `Input`, `Select`, `Card`, `Badge`, `Avatar`,
+  `Tabs`, `Modal` (bottom sheet no mobile), `Toaster` + helper `toast`, `Spinner`, `LoadingState`,
+  `SkeletonCard`/`SkeletonList`, `EmptyState`, `ErrorState`, `PageHeader`, `StatCard`.
+- **Layout responsivo** em `src/components/layout/`: navegação inferior no mobile (< 768px), rail
+  de ícones no tablet (768-1023px) e sidebar completa no desktop (≥ 1024px).
+- **Tema claro/escuro** via `next-themes`, com todos os tokens definidos nos dois modos.
+- **Estados por rota**: `loading.tsx` (skeletons), `error.tsx` (com retry) e `not-found.tsx`.
+
+Para conferir a responsividade, `npm run screenshots` captura as telas principais em três
+tamanhos de tela e nos dois temas (requer a app rodando; padrão `http://127.0.0.1:3200`).
 
 ## Autenticação e autorização (Fase 2)
 

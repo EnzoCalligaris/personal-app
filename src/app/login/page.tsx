@@ -1,28 +1,25 @@
 import { Suspense } from "react";
-import Link from "next/link";
+
+import { AuthFooterLink, AuthShell } from "@/components/auth/auth-shell";
 import { LoginForm } from "@/components/auth/login-form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+
+export const metadata = { title: "Entrar" };
 
 export default function LoginPage() {
   return (
-    <div className="flex flex-1 items-center justify-center bg-zinc-50 px-4 py-16 dark:bg-black">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Entrar</CardTitle>
-          <CardDescription>Acesse sua conta de Personal ou Aluno.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <Suspense>
-            <LoginForm />
-          </Suspense>
-          <p className="text-center text-sm text-muted-foreground">
-            Não tem uma conta?{" "}
-            <Link href="/registro" className="font-medium text-foreground hover:underline">
-              Criar conta
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+    <AuthShell
+      title="Bem-vindo de volta"
+      description="Entre com sua conta de Personal Trainer ou de Aluno."
+      footer={
+        <>
+          Não tem uma conta? <AuthFooterLink href="/registro">Criar conta</AuthFooterLink>
+        </>
+      }
+    >
+      <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+        <LoginForm />
+      </Suspense>
+    </AuthShell>
   );
 }
