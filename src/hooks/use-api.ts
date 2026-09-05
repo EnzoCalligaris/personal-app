@@ -12,16 +12,21 @@ type ApiState<T> = {
  * GET em um endpoint da própria aplicação, com estados de carregamento e erro
  * e possibilidade de tentar de novo. A requisição é cancelada se o componente
  * desmontar ou se um novo `refetch` começar.
+ *
+ * Passar `null` como url pula a requisição (útil quando os dados só são
+ * necessários em certas condições).
  */
-export function useApi<T>(url: string) {
+export function useApi<T>(url: string | null) {
   const [state, setState] = React.useState<ApiState<T>>({
     data: null,
-    loading: true,
+    loading: url !== null,
     error: null,
   });
   const [attempt, setAttempt] = React.useState(0);
 
   React.useEffect(() => {
+    if (url === null) return;
+
     const controller = new AbortController();
     let cancelled = false;
 

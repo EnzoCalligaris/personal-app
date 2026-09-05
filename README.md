@@ -130,6 +130,34 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
 
+## Treinos (Fase 7)
+
+Montagem de fichas em `/personal/treinos`, com editor em `/personal/treinos/[id]`. Cada treino é
+**vinculado a um aluno** e a um dia da semana, e reúne exercícios da biblioteca com séries,
+repetições, carga, descanso e observações.
+
+| Endpoint | O que faz |
+| -------- | --------- |
+| `GET/POST /api/personal/treinos` | Lista (filtros por aluno, dia, status e busca) e cria |
+| `GET/PATCH/DELETE /api/personal/treinos/[id]` | Detalhe, edição (inclui desativar) e exclusão |
+| `POST /api/personal/treinos/[id]/duplicar` | Duplica com todos os exercícios, para o mesmo aluno ou outro |
+| `POST /api/personal/treinos/[id]/exercicios` | Adiciona um exercício ao final da ficha |
+| `PATCH/DELETE .../exercicios/[itemId]` | Edita os parâmetros ou remove (renumerando os demais) |
+| `PUT .../exercicios/ordem` | Regrava a ordem dos exercícios |
+
+Pontos de atenção:
+
+- **Isolamento entre Personals**: criar, transferir ou duplicar um treino para aluno de outro
+  profissional responde **404**, assim como usar um exercício da biblioteca alheia. Tudo é
+  verificado no servidor antes de gravar.
+- **Reordenação em duas fases**: `treino_exercicios` tem `UNIQUE (treinoId, ordem)` e o Postgres
+  valida a cada linha atualizada — gravar as posições finais direto colidiria no meio do caminho.
+  As posições passam primeiro por valores negativos e depois pelos definitivos, dentro de uma
+  transação. A remoção usa o mesmo mecanismo para manter a numeração sempre 1..n.
+- **Desativar x excluir**: desativar tira o treino de circulação mantendo o histórico; excluir
+  remove a ficha e as execuções registradas dela (a biblioteca de exercícios não é afetada).
+- A aba **Treinos** da ficha do aluno lista os treinos dele e permite criar já com o aluno fixado.
+
 ## Biblioteca de exercícios (Fase 6)
 
 CRUD da biblioteca em `/personal/exercicios`: cadastrar, editar, buscar (nome/descrição), filtrar

@@ -38,6 +38,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { StatCard } from "@/components/ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlunoFormModal } from "@/components/personal/alunos/aluno-form-modal";
+import { AlunoTreinosTab } from "@/components/personal/alunos/aluno-treinos-tab";
 
 function idade(dataNascimento: string | null) {
   if (!dataNascimento) return null;
@@ -337,11 +338,7 @@ export function AlunoDetalhe({ alunoId }: { alunoId: string }) {
         </TabsContent>
 
         <TabsContent value="treinos" className="pt-4">
-          <EmptyState
-            icon={DumbbellIcon}
-            title="Treinos deste aluno"
-            description="A montagem de treinos por dia da semana entra na próxima fase. Aqui ficarão as fichas, os exercícios e o histórico de execução."
-          />
+          <AlunoTreinosTab aluno={{ id: aluno.id, nome: aluno.nome }} />
         </TabsContent>
 
         <TabsContent value="agenda" className="pt-4">
