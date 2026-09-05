@@ -84,3 +84,49 @@ export const editarAgendamentoSchema = z
 export type EditarAgendamentoInput = z.infer<typeof editarAgendamentoSchema>;
 
 export const horariosLivresQuerySchema = z.object({ data: dataCalendario });
+
+/** Regras que o Personal define para o aluno marcar sozinho. */
+export const regrasAgendamentoSchema = z.object({
+  permiteAgendamento: z.boolean().optional(),
+  antecedenciaMinHoras: z.coerce.number().int().min(0).max(168).optional(),
+  janelaDias: z.coerce.number().int().min(1).max(180).optional(),
+  cancelamentoMinHoras: z.coerce.number().int().min(0).max(168).optional(),
+  maxAtivosPorAluno: z.coerce.number().int().min(1).max(20).optional(),
+  confirmacaoAutomatica: z.boolean().optional(),
+});
+export type RegrasAgendamentoInput = z.infer<typeof regrasAgendamentoSchema>;
+
+/** O aluno marca informando data e horário escolhidos entre os livres. */
+export const agendarComoAlunoSchema = z
+  .object({
+    data: dataCalendario,
+    horaInicio: hora,
+    horaFim: hora,
+    observacoes: z.string().trim().max(300).optional().nullable(),
+  })
+  .refine((valores) => valores.horaFim > valores.horaInicio, {
+    message: "O término precisa ser depois do início.",
+    path: ["horaFim"],
+  });
+export type AgendarComoAlunoInput = z.infer<typeof agendarComoAlunoSchema>;
+
+/** Cancelar ou reagendar pelo aluno. */
+export const editarComoAlunoSchema = z
+  .object({
+    status: z.literal("CANCELADO").optional(),
+    data: dataCalendario.optional(),
+    horaInicio: hora.optional(),
+    horaFim: hora.optional(),
+  })
+  .refine(
+    (valores) =>
+      valores.status === "CANCELADO" ||
+      (!!valores.data && !!valores.horaInicio && !!valores.horaFim),
+    { message: "Informe o novo horário ou cancele o atendimento." }
+  );
+export type EditarComoAlunoInput = z.infer<typeof editarComoAlunoSchema>;
+
+export const diasParaAgendarQuerySchema = z.object({
+  de: dataCalendario.optional(),
+  ate: dataCalendario.optional(),
+});

@@ -79,6 +79,7 @@ model PersonalProfile {
   bio    String?
   cref   String? // registro profissional
 
+  configAgenda     ConfiguracaoAgenda?
   alunos           AlunoProfile[]
   exercicios       Exercicio[]
   treinos          Treino[]
@@ -285,6 +286,34 @@ model Disponibilidade {
 
   @@unique([personalId, diaSemana, horaInicio])
   @@map("disponibilidades")
+}
+
+/**
+ * Regras que o Personal define para o aluno marcar sozinho. Sem linha, valem
+ * os padrões de src/lib/agenda/regras.ts.
+ */
+model ConfiguracaoAgenda {
+  id         String          @id @default(uuid())
+  personalId String          @unique
+  personal   PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+
+  /// O aluno pode marcar horário sozinho.
+  permiteAgendamento    Boolean @default(true)
+  /// Horas de antecedência mínima para marcar.
+  antecedenciaMinHoras  Int     @default(12)
+  /// Até quantos dias à frente o aluno pode marcar.
+  janelaDias            Int     @default(30)
+  /// Horas de antecedência mínima para cancelar ou reagendar.
+  cancelamentoMinHoras  Int     @default(12)
+  /// Quantos atendimentos futuros o aluno pode ter marcados ao mesmo tempo.
+  maxAtivosPorAluno     Int     @default(3)
+  /// O agendamento do aluno já nasce confirmado (senão fica à espera do aceite).
+  confirmacaoAutomatica Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("configuracoes_agenda")
 }
 
 /**

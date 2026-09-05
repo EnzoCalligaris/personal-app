@@ -11,6 +11,7 @@ import {
   somarDiasUTC,
 } from "@/lib/date-utils";
 import { STATUS_ATIVOS } from "@/lib/agenda/status";
+import { REGRAS_PADRAO } from "@/lib/agenda/regras";
 import { gerarSlots, removerOcupados, sobrepoe } from "@/lib/agenda/horarios";
 import { treinosPrevistosPara } from "@/lib/programacoes/queries";
 import type { DiaSemana, StatusAgendamento } from "@/types";
@@ -21,6 +22,7 @@ import type {
   DiaDaAgenda,
   FaixaDeTrabalho,
   HorariosLivresResponse,
+  RegrasAgendamento,
   SlotLivre,
   VistaAgenda,
 } from "@/types/agenda";
@@ -29,6 +31,7 @@ import type {
   CriarBloqueioInput,
   EditarAgendamentoInput,
   FaixaDeTrabalhoInput,
+  RegrasAgendamentoInput,
 } from "@/lib/validations/agenda";
 
 /**
@@ -580,4 +583,39 @@ export async function horariosLivres(
     livres,
     motivo: livres.length === 0 ? "LOTADO" : "OK",
   };
+}
+
+/* -------------------------------------------------------------------------
+   Regras de agendamento
+   ------------------------------------------------------------------------- */
+
+/** Regras do Personal; sem configuração salva, valem os padrões. */
+export async function regrasDoPersonal(personalId: string): Promise<RegrasAgendamento> {
+  const config = await prisma.configuracaoAgenda.findUnique({ where: { personalId } });
+  if (!config) return REGRAS_PADRAO;
+
+  return {
+    permiteAgendamento: config.permiteAgendamento,
+    antecedenciaMinHoras: config.antecedenciaMinHoras,
+    janelaDias: config.janelaDias,
+    cancelamentoMinHoras: config.cancelamentoMinHoras,
+    maxAtivosPorAluno: config.maxAtivosPorAluno,
+    confirmacaoAutomatica: config.confirmacaoAutomatica,
+  };
+}
+
+export async function salvarRegras(
+  personalId: string,
+  input: RegrasAgendamentoInput
+): Promise<RegrasAgendamento> {
+  const atuais = await regrasDoPersonal(personalId);
+  const novas = { ...atuais, ...input };
+
+  await prisma.configuracaoAgenda.upsert({
+    where: { personalId },
+    create: { personalId, ...novas },
+    update: novas,
+  });
+
+  return novas;
 }

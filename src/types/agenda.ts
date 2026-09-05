@@ -75,3 +75,13 @@ export type HorariosLivresResponse = {
 export type HorariosDeTrabalhoResponse = {
   faixas: FaixaDeTrabalho[];
 };
+
+/** Regras que o Personal define para o aluno marcar sozinho. */
+export type RegrasAgendamento = {
+  permiteAgendamento: boolean;
+  antecedenciaMinHoras: number;
+  janelaDias: number;
+  cancelamentoMinHoras: number;
+  maxAtivosPorAluno: number;
+  confirmacaoAutomatica: boolean;
+};

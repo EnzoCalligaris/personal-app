@@ -20,6 +20,7 @@ import type { DiaSemana } from "@/types";
 import type {
   AgendamentoAgenda,
   FaixaDeTrabalho,
+  RegrasAgendamento,
   HorariosDeTrabalhoResponse,
   HorariosLivresResponse,
   SlotLivre,
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 const DIAS: DiaSemana[] = [
@@ -508,8 +510,8 @@ export function HorariosDeTrabalhoModal({
         }
         onOpenChange(aberto);
       }}
-      title="Horários de trabalho"
-      description="O sistema gera os atendimentos disponíveis a partir destas faixas."
+      title="Configurações da agenda"
+      description="Seus horários de trabalho e as regras para o aluno marcar sozinho."
       footer={<ModalClose render={<Button>Fechar</Button>} />}
     >
       <div className="flex flex-col gap-4">
@@ -615,8 +617,133 @@ export function HorariosDeTrabalhoModal({
             ))}
           </ul>
         )}
+
+        <RegrasDoAluno onMudou={onMudou} />
       </div>
     </Modal>
+  );
+}
+
+/** Regras que o aluno precisa respeitar para marcar sozinho. */
+function RegrasDoAluno({ onMudou }: { onMudou: () => void }) {
+  const { data } = useApi<{ regras: RegrasAgendamento }>("/api/personal/agenda/regras");
+  const [regras, setRegras] = React.useState<RegrasAgendamento | null>(null);
+  const [salvando, setSalvando] = React.useState(false);
+
+  const atual = regras ?? data?.regras ?? null;
+
+  async function salvar(mudanca: Partial<RegrasAgendamento>) {
+    if (!atual) return;
+
+    const novas = { ...atual, ...mudanca };
+    setRegras(novas);
+    setSalvando(true);
+
+    try {
+      const res = await fetch("/api/personal/agenda/regras", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(novas),
+      });
+      const body = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        toast.error(body?.error ?? "Não foi possível salvar as regras.");
+        setRegras(atual);
+        return;
+      }
+
+      setRegras(body.regras as RegrasAgendamento);
+      onMudou();
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  if (!atual) return <Skeleton className="h-40 rounded-xl" />;
+
+  const numeros: { chave: keyof RegrasAgendamento; rotulo: string; ajuda: string; max: number }[] = [
+    {
+      chave: "antecedenciaMinHoras",
+      rotulo: "Antecedência mínima (h)",
+      ajuda: "Quanto tempo antes o aluno precisa marcar.",
+      max: 168,
+    },
+    {
+      chave: "cancelamentoMinHoras",
+      rotulo: "Cancelamento (h)",
+      ajuda: "Prazo para o aluno cancelar ou reagendar sozinho.",
+      max: 168,
+    },
+    {
+      chave: "janelaDias",
+      rotulo: "Janela (dias)",
+      ajuda: "Até quantos dias à frente ele pode marcar.",
+      max: 180,
+    },
+    {
+      chave: "maxAtivosPorAluno",
+      rotulo: "Máx. marcados",
+      ajuda: "Atendimentos futuros por aluno.",
+      max: 20,
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">Regras para os alunos</span>
+        {salvando ? <Spinner size="sm" /> : null}
+      </div>
+
+      <label className="flex items-start justify-between gap-3">
+        <span className="flex flex-col">
+          <span className="text-sm">Aluno pode marcar sozinho</span>
+          <span className="text-xs text-muted-foreground">
+            Desligado, só você marca os horários.
+          </span>
+        </span>
+        <Switch
+          checked={atual.permiteAgendamento}
+          onCheckedChange={(marcado) => salvar({ permiteAgendamento: marcado })}
+        />
+      </label>
+
+      <label className="flex items-start justify-between gap-3">
+        <span className="flex flex-col">
+          <span className="text-sm">Confirmar automaticamente</span>
+          <span className="text-xs text-muted-foreground">
+            Desligado, o pedido do aluno fica aguardando seu aceite.
+          </span>
+        </span>
+        <Switch
+          checked={atual.confirmacaoAutomatica}
+          onCheckedChange={(marcado) => salvar({ confirmacaoAutomatica: marcado })}
+        />
+      </label>
+
+      <div className="grid grid-cols-2 gap-3">
+        {numeros.map((campo) => (
+          <div key={campo.chave} className="flex flex-col gap-1.5">
+            <Label htmlFor={`regra-${campo.chave}`} className="text-xs">
+              {campo.rotulo}
+            </Label>
+            <Input
+              id={`regra-${campo.chave}`}
+              type="number"
+              min={0}
+              max={campo.max}
+              value={String(atual[campo.chave])}
+              onChange={(evento) =>
+                setRegras({ ...atual, [campo.chave]: Number(evento.target.value) })
+              }
+              onBlur={(evento) => salvar({ [campo.chave]: Number(evento.target.value) })}
+            />
+            <span className="text-[0.7rem] text-muted-foreground">{campo.ajuda}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

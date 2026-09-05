@@ -146,7 +146,7 @@ export function AgendaPersonal() {
           <>
             <Button variant="outline" size="sm" onClick={() => setConfigurando(true)}>
               <SettingsIcon />
-              Horários de trabalho
+              Configurações
             </Button>
             <Button
               variant="outline"

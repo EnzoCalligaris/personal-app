@@ -1,4 +1,5 @@
 import type { DiaSemana, StatusAgendamento } from "@/types";
+import type { RegrasAgendamento } from "@/types/agenda";
 import type { TreinoItemExercicio } from "@/types/treino";
 
 /** Ficha do aluno, como ele mesmo vê (sem nada do Personal além do nome). */
@@ -145,12 +146,15 @@ export type MeuAgendamento = {
   horaFim: string;
   status: StatusAgendamento;
   observacoes: string | null;
+  /** O aluno ainda está dentro do prazo para cancelar ou reagendar. */
+  podeDesmarcar: boolean;
 };
 
 export type MinhaAgendaResponse = {
   proximos: MeuAgendamento[];
   anteriores: MeuAgendamento[];
   personal: MeuPersonal | null;
+  regras: RegrasAgendamento;
 };
 
 export type MeuPersonal = {
@@ -228,5 +232,45 @@ export type AlunoDashboardResponse = {
   };
   evolucao: MinhaEvolucaoResponse;
   ultimoFeedback: MeuFeedback | null;
+  personal: MeuPersonal | null;
+};
+
+/* -------------------------------------------------------------------------
+   Agendamento pelo aluno
+   ------------------------------------------------------------------------- */
+
+/** Um dia da janela de agendamento, com quantos horários ele tem livres. */
+export type DiaParaAgendar = {
+  data: string;
+  diaSemana: DiaSemana;
+  livres: number;
+  /** Nenhum horário pode ser marcado neste dia (passado, fora da janela...). */
+  indisponivel: boolean;
+};
+
+export type HorariosParaAgendarResponse = {
+  data: string;
+  livres: { horaInicio: string; horaFim: string }[];
+  /** Por que a lista veio vazia. */
+  motivo:
+    | "OK"
+    | "SEM_TRABALHO"
+    | "BLOQUEADO"
+    | "LOTADO"
+    | "PASSADO"
+    | "ANTECEDENCIA"
+    | "FORA_DA_JANELA"
+    | "AGENDAMENTO_DESATIVADO"
+    | "LIMITE_ATINGIDO";
+  mensagem: string | null;
+};
+
+export type DiasParaAgendarResponse = {
+  de: string;
+  ate: string;
+  dias: DiaParaAgendar[];
+  regras: RegrasAgendamento;
+  /** Quantos atendimentos futuros o aluno já tem. */
+  ativos: number;
   personal: MeuPersonal | null;
 };

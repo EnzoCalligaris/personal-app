@@ -3,6 +3,8 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { STATUS_ATIVOS } from "@/lib/agenda/status";
+import { regrasDoPersonal } from "@/lib/agenda/queries";
+import { instanteDoAtendimento, podeDesmarcar, REGRAS_PADRAO } from "@/lib/agenda/regras";
 import {
   dataDoInstante,
   hojeUTC,
@@ -35,6 +37,7 @@ import type {
   MinhaEvolucaoResponse,
   VariacaoMetrica,
 } from "@/types/aluno-area";
+import type { RegrasAgendamento } from "@/types/agenda";
 import type { TreinoItemExercicio } from "@/types/treino";
 
 /**
@@ -106,14 +109,21 @@ function toPersonal(
   };
 }
 
-function toAgendamento(item: {
-  id: string;
-  data: Date;
-  horaInicio: string;
-  horaFim: string;
-  status: MeuAgendamento["status"];
-  observacoes: string | null;
-}): MeuAgendamento {
+function toAgendamento(
+  item: {
+    id: string;
+    data: Date;
+    horaInicio: string;
+    horaFim: string;
+    status: MeuAgendamento["status"];
+    observacoes: string | null;
+  },
+  regras: RegrasAgendamento = REGRAS_PADRAO,
+  agora: Date = new Date()
+): MeuAgendamento {
+  const ativo = (STATUS_ATIVOS as readonly string[]).includes(item.status);
+  const inicio = instanteDoAtendimento(paraISO(dataDoInstante(item.data)), item.horaInicio);
+
   return {
     id: item.id,
     data: item.data.toISOString(),
@@ -121,6 +131,7 @@ function toAgendamento(item: {
     horaFim: item.horaFim,
     status: item.status,
     observacoes: item.observacoes,
+    podeDesmarcar: ativo && podeDesmarcar(inicio, regras, agora),
   };
 }
 
@@ -340,33 +351,59 @@ export async function meuHistorico(alunoId: string, limite = 50): Promise<MeuHis
    Agenda
    ------------------------------------------------------------------------- */
 
+/** Meia-noite local de hoje - o corte das consultas por dia. */
+function inicioDeHoje(agora: Date) {
+  const inicio = new Date(agora);
+  inicio.setHours(0, 0, 0, 0);
+  return inicio;
+}
+
 export async function minhaAgenda(
   alunoId: string,
   agora: Date = new Date()
 ): Promise<MinhaAgendaResponse> {
-  const [perfil, proximos, anteriores] = await Promise.all([
+  const [perfil, deHojeEmDiante, anteriores] = await Promise.all([
     prisma.alunoProfile.findUnique({
       where: { id: alunoId },
       select: {
+        personalId: true,
         personal: { select: { user: { select: { name: true, email: true, avatarUrl: true } } } },
       },
     }),
+    // A data é gravada na meia-noite do dia; o que separa passado de futuro é
+    // o fim do atendimento, senão tudo o que é de hoje viraria histórico.
     prisma.agendamento.findMany({
-      where: { alunoId, data: { gte: agora } },
-      orderBy: { data: "asc" },
-      take: 20,
+      where: { alunoId, data: { gte: inicioDeHoje(agora) } },
+      orderBy: [{ data: "asc" }, { horaInicio: "asc" }],
+      take: 30,
     }),
     prisma.agendamento.findMany({
-      where: { alunoId, data: { lt: agora } },
-      orderBy: { data: "desc" },
+      where: { alunoId, data: { lt: inicioDeHoje(agora) } },
+      orderBy: [{ data: "desc" }, { horaInicio: "desc" }],
       take: 10,
     }),
   ]);
 
+  // As regras do Personal decidem o que o aluno ainda pode desmarcar.
+  const regras = perfil?.personalId ? await regrasDoPersonal(perfil.personalId) : REGRAS_PADRAO;
+
+  // O que já terminou hoje entra no histórico, não nos próximos.
+  const proximos: typeof deHojeEmDiante = [];
+  const encerradosHoje: typeof deHojeEmDiante = [];
+
+  for (const item of deHojeEmDiante) {
+    const fim = instanteDoAtendimento(paraISO(dataDoInstante(item.data)), item.horaFim);
+    if (fim.getTime() >= agora.getTime()) proximos.push(item);
+    else encerradosHoje.push(item);
+  }
+
   return {
-    proximos: proximos.map(toAgendamento),
-    anteriores: anteriores.map(toAgendamento),
+    proximos: proximos.map((item) => toAgendamento(item, regras, agora)),
+    anteriores: [...encerradosHoje.reverse(), ...anteriores].map((item) =>
+      toAgendamento(item, regras, agora)
+    ),
     personal: toPersonal(perfil?.personal ?? null),
+    regras,
   };
 }
 

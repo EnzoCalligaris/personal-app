@@ -119,7 +119,7 @@ export function CartaoAgendamento({
           ) : null}
 
           <Badge variant={status.variant} className="w-fit">
-            {status.label}
+            {status.curto}
           </Badge>
         </div>
       </button>

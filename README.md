@@ -136,6 +136,63 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
 
+## Agendamento pelo aluno (Fase 13)
+
+Duas telas no app do aluno: **`/aluno/agenda`** (Minha agenda) e
+**`/aluno/agenda/agendar`** (Agendar treino), com as regras que o Personal configurou.
+
+**Agendar treino** em três passos: escolher o dia numa faixa com a contagem de horários livres de
+cada um (dias sem vaga vêm desabilitados), escolher o horário entre os que aparecem e confirmar,
+com um resumo do que será marcado. Só entram na lista horários **realmente disponíveis** — e o
+servidor revalida tudo na gravação, então passar por cima da tela não adianta.
+
+**Minha agenda** abre com o **próximo treino** em destaque (data, horário, status e as ações),
+seguido dos demais horários marcados e do histórico. Cancelar e reagendar aparecem apenas enquanto
+o prazo do Personal permite; passado o prazo, a tela explica que é preciso falar com ele.
+
+| Endpoint | O que faz |
+| -------- | --------- |
+| `GET /api/aluno/agenda/dias` | Janela de dias com os livres de cada um, as regras e quantos atendimentos o aluno já tem |
+| `GET /api/aluno/agenda/horarios?data=` | Horários que o aluno pode marcar naquela data (ou o motivo de não haver nenhum) |
+| `POST /api/aluno/agendamentos` | Marca o horário |
+| `PATCH /api/aluno/agendamentos/[id]` | Cancela (`status: "CANCELADO"`) ou reagenda |
+| `GET/PUT /api/personal/agenda/regras` | O Personal lê e ajusta as regras |
+
+### Regras configuradas pelo Personal
+
+Ficam em `ConfiguracaoAgenda` (um registro por Personal; sem registro valem os padrões de
+`src/lib/agenda/regras.ts`) e são editadas em **Agenda → Configurações**:
+
+| Regra | O que faz | Padrão |
+| ----- | --------- | ------ |
+| `permiteAgendamento` | Se desligado, só o Personal marca | ligado |
+| `antecedenciaMinHoras` | Antecedência mínima para marcar | 12h |
+| `janelaDias` | Até quantos dias à frente dá para marcar | 30 |
+| `cancelamentoMinHoras` | Prazo para o aluno cancelar ou reagendar sozinho | 12h |
+| `maxAtivosPorAluno` | Atendimentos futuros por aluno | 3 |
+| `confirmacaoAutomatica` | Se ligado, o horário do aluno já nasce confirmado | desligado |
+
+O que é recusado (sempre com 409 e a explicação):
+
+- **Horário passado** e horário dentro da antecedência mínima.
+- **Data fora da janela** liberada.
+- **Horário bloqueado** pelo Personal, ou fora das faixas de trabalho.
+- **Conflito**: qualquer sobreposição com atendimento ativo — nunca dois alunos no mesmo horário.
+- **Limite de marcações** atingido; e agendamento desligado pelo Personal.
+- **Cancelar ou reagendar fora do prazo** — inclusive quando o aluno chama a API direto.
+
+Um aluno só enxerga e altera os próprios agendamentos (o `where` leva o `alunoId` da sessão, então
+o id de outro responde 404), e o aluno sem Personal vinculado recebe 409 com a explicação.
+
+Correção que veio junto: a data do agendamento é gravada à meia-noite, então a separação entre
+"próximos" e "histórico" passou a usar o **fim do atendimento**, e não o campo `data` — antes, tudo
+que era de hoje caía no histórico.
+
+Cobertura: `tests/agendamento-aluno-http.test.ts` (21 testes) — autorização, horários oferecidos,
+passado, antecedência, janela, bloqueio, limite, agendamento desligado, confirmação automática,
+dois alunos no mesmo horário, reagendamento, cancelamento dentro e fora do prazo e o isolamento
+entre alunos.
+
 ## Agenda do Personal (Fase 12)
 
 `/personal/agenda` em três vistas — **dia**, **semana** e **mês** — sobre a mesma resposta da API,
@@ -297,7 +354,7 @@ O início abre com **"Olá, [Nome] 👋"** e mostra, nesta ordem:
 | `GET /api/aluno/treinos/[id]` | Ficha completa, com séries, repetições, carga e descanso |
 | `POST /api/aluno/treinos/[id]/execucoes` | Fecha a sessão de treino (ver [Execução do treino](#execução-do-treino-fase-10)) |
 | `GET /api/aluno/historico` | Histórico de execuções, com o que foi feito em cada uma |
-| `GET /api/aluno/agenda` | Agendamentos próximos e anteriores |
+| `GET /api/aluno/agenda` | Agendamentos próximos e anteriores (ver [Agendamento pelo aluno](#agendamento-pelo-aluno-fase-13)) |
 | `GET /api/aluno/evolucao` | Avaliações em ordem cronológica + variações por métrica |
 | `GET /api/aluno/progresso` | Frequência, sequência e evolução de carga por exercício |
 | `GET /api/aluno/feedbacks` | Comentários do Personal para este aluno |
