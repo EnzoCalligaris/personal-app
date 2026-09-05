@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { STATUS_ATIVOS } from "@/lib/agenda/status";
 import {
   dataDoInstante,
   hojeUTC,
@@ -59,8 +60,7 @@ export class ItemInvalidoError extends Error {
 
 /** Últimos dias considerados ao calcular a sequência de treinos. */
 const JANELA_SEQUENCIA_DIAS = 30;
-/** Status que ainda representam um compromisso de pé. */
-const STATUS_ATIVOS = ["AGENDADO", "REAGENDADO"] as const;
+
 
 function includeTreinoCom(hoje: Date) {
   return {

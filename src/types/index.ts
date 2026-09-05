@@ -10,7 +10,10 @@ export type DiaSemana =
   | "SABADO";
 
 export type StatusAgendamento =
+  /** Marcado, à espera do aceite do Personal. */
   | "AGENDADO"
+  | "CONFIRMADO"
   | "CANCELADO"
   | "REALIZADO"
+  /** Movido de horário - continua valendo, à espera de confirmação. */
   | "REAGENDADO";

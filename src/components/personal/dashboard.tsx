@@ -16,7 +16,7 @@ import {
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
 import { diaSemanaLabel, formatarData, formatarDataRelativa, iniciais } from "@/lib/format";
-import type { StatusAgendamento } from "@/types";
+import { STATUS_AGENDAMENTO } from "@/lib/agenda/status";
 import type {
   DashboardAgendamento,
   DashboardAluno,
@@ -40,15 +40,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 
-const STATUS_BADGE: Record<
-  StatusAgendamento,
-  { label: string; variant: "info" | "warning" | "success" | "destructive" }
-> = {
-  AGENDADO: { label: "Agendado", variant: "info" },
-  REAGENDADO: { label: "Reagendado", variant: "warning" },
-  REALIZADO: { label: "Realizado", variant: "success" },
-  CANCELADO: { label: "Cancelado", variant: "destructive" },
-};
 
 const ACOES_RAPIDAS = [
   { label: "Novo aluno", href: "/personal/alunos", icon: UserPlusIcon },
@@ -159,7 +150,7 @@ function Resumo({ data }: { data: DashboardData }) {
 }
 
 function ItemAgendamento({ item }: { item: DashboardAgendamento }) {
-  const status = STATUS_BADGE[item.status];
+  const status = STATUS_AGENDAMENTO[item.status];
 
   return (
     <li className="flex items-center gap-3 rounded-xl border border-transparent px-2 py-2.5 transition-colors hover:border-border hover:bg-muted/50">
@@ -241,7 +232,7 @@ function ProximosAgendamentos({ itens }: { itens: DashboardAgendamento[] }) {
         ) : (
           <ul className="flex flex-col gap-2">
             {itens.slice(0, 5).map((item) => {
-              const status = STATUS_BADGE[item.status];
+              const status = STATUS_AGENDAMENTO[item.status];
               return (
                 <li key={item.id} className="flex items-center gap-3">
                   <div className="flex flex-col">

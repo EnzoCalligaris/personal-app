@@ -10,7 +10,7 @@ import {
   formatarIntervaloHorario,
   iniciais,
 } from "@/lib/format";
-import type { StatusAgendamento } from "@/types";
+import { STATUS_AGENDAMENTO } from "@/lib/agenda/status";
 import type { MeuAgendamento, MinhaAgendaResponse } from "@/types/aluno-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,15 +20,6 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SkeletonList } from "@/components/ui/loading";
 
-const STATUS: Record<
-  StatusAgendamento,
-  { label: string; variant: "info" | "warning" | "success" | "destructive" }
-> = {
-  AGENDADO: { label: "Agendado", variant: "info" },
-  REAGENDADO: { label: "Reagendado", variant: "warning" },
-  REALIZADO: { label: "Realizado", variant: "success" },
-  CANCELADO: { label: "Cancelado", variant: "destructive" },
-};
 
 export function MinhaAgenda() {
   const { data, loading, error, refetch } = useApi<MinhaAgendaResponse>("/api/aluno/agenda");
@@ -120,7 +111,7 @@ export function MinhaAgenda() {
 }
 
 function ItemAgendamento({ item, destaque }: { item: MeuAgendamento; destaque?: boolean }) {
-  const status = STATUS[item.status];
+  const status = STATUS_AGENDAMENTO[item.status];
   const cancelado = item.status === "CANCELADO";
 
   return (

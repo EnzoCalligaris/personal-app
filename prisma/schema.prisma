@@ -30,9 +30,13 @@ enum StatusAluno {
 }
 
 enum StatusAgendamento {
+  // Marcado, à espera do aceite do Personal.
   AGENDADO
+  // Confirmado pelo Personal.
+  CONFIRMADO
   CANCELADO
   REALIZADO
+  // Movido de horário - continua valendo, à espera de confirmação.
   REAGENDADO
 }
 
@@ -79,6 +83,7 @@ model PersonalProfile {
   exercicios       Exercicio[]
   treinos          Treino[]
   disponibilidades Disponibilidade[]
+  bloqueios        Bloqueio[]
   agendamentos     Agendamento[]
   avaliacoes       Avaliacao[]
   feedbacks        Feedback[]
@@ -280,6 +285,25 @@ model Disponibilidade {
 
   @@unique([personalId, diaSemana, horaInicio])
   @@map("disponibilidades")
+}
+
+/**
+ * Horário em que o Personal não atende: férias, compromisso pessoal, almoço.
+ * Sem hora de início e fim, o dia inteiro está bloqueado. "Liberar horário" é
+ * apagar o bloqueio.
+ */
+model Bloqueio {
+  id         String          @id @default(uuid())
+  personalId String
+  personal   PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  data       DateTime        @db.Date
+  horaInicio String?
+  horaFim    String?
+  motivo     String?
+  createdAt  DateTime        @default(now())
+
+  @@index([personalId, data])
+  @@map("bloqueios")
 }
 
 model Agendamento {

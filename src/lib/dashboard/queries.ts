@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { STATUS_ATIVOS } from "@/lib/agenda/status";
 import {
   dataDoInstante,
   diaSemanaDe,
@@ -21,8 +22,7 @@ import type {
   DashboardData,
 } from "@/types/dashboard";
 
-/** Status que ainda representam um compromisso de pé. */
-const STATUS_ATIVOS = ["AGENDADO", "REAGENDADO"] as const;
+
 
 const JANELA_ATIVIDADE_DIAS = 30;
 const LIMITE_AGENDA = 8;

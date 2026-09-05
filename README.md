@@ -121,6 +121,7 @@ src/components/personal/   Telas do Personal (dashboard, alunos, treinos, progra
 src/components/ui/         Componentes shadcn/ui (Base UI)
 src/lib/auth/session.ts    Resolve o usuário autenticado + role (AuthContext)
 src/lib/auth/guards.ts     requireAuth/requirePersonal/requireAluno + regras de ownership
+src/lib/agenda/            Horários de trabalho, geração de slots e regras de conflito
 src/lib/aluno/             Consultas da área do aluno (escopadas pelo perfil da sessão)
 src/lib/programacoes/      Programação semanal + resolução do treino previsto por data
 src/lib/prisma.ts          Cliente Prisma (adapter-pg)
@@ -134,6 +135,61 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > anteriores (ex.: `middleware.ts` → `proxy.ts` com export `proxy`; conexão do banco sai do
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
+
+## Agenda do Personal (Fase 12)
+
+`/personal/agenda` em três vistas — **dia**, **semana** e **mês** — sobre a mesma resposta da API,
+com navegação por período e o resumo do que está marcado, confirmado, a confirmar e livre.
+
+| Endpoint | O que faz |
+| -------- | --------- |
+| `GET /api/personal/agenda?vista=dia\|semana\|mes&data=` | A agenda do período: atendimentos, bloqueios, horários livres e as faixas de trabalho de cada dia |
+| `GET /api/personal/agenda/horarios?data=` | Horários livres de um dia (alimenta o seletor de agendamento) |
+| `GET/POST /api/personal/agenda/trabalho` | Configuração dos horários de trabalho |
+| `DELETE /api/personal/agenda/trabalho/[id]` | Remove uma faixa |
+| `POST /api/personal/agenda/bloqueios` | Bloqueia um horário ou o dia inteiro |
+| `DELETE /api/personal/agenda/bloqueios/[id]` | Libera o horário |
+| `POST /api/personal/agendamentos` | Marca um atendimento |
+| `PATCH /api/personal/agendamentos/[id]` | Confirma, cancela, marca como concluído ou reagenda |
+
+**Horários de trabalho** são faixas por dia da semana, com a duração de cada atendimento — o mesmo
+dia aceita mais de uma faixa (manhã e tarde):
+
+```
+Segunda   06:00–12:00 · 60min
+          14:00–20:00 · 60min
+Terça     06:00–12:00 · 60min
+          14:00–20:00 · 60min
+```
+
+Delas o sistema **gera os horários disponíveis**: cada faixa é quebrada em atendimentos da duração
+configurada (uma sobra menor que a duração é descartada), e some da lista o que já está ocupado ou
+bloqueado. A tela só oferece horários gerados assim — não há campo livre de hora para agendar.
+
+Regras de conflito (validadas no servidor, não só na tela):
+
+- **Dois alunos nunca ocupam o mesmo horário.** Qualquer sobreposição com um atendimento ativo
+  (`[início, fim)` que se cruzam) responde **409** — inclusive sobreposição parcial. Encostar um
+  horário no outro (08:00 logo após 07:00–08:00) é permitido.
+- **Horário bloqueado não aceita agendamento** (409). Bloqueio pode ser uma faixa ou o dia inteiro;
+  liberar é apagá-lo.
+- Cancelar **devolve o horário** para a lista de livres; reativar um cancelado revalida o conflito.
+- Reagendar revalida data e hora ignorando o próprio agendamento; mudar de horário sem informar
+  status marca como **REAGENDADO**.
+- Cada Personal só enxerga e altera a própria agenda; agendar aluno de outro profissional responde
+  404, e mexer no agendamento alheio também.
+
+O status ganhou **CONFIRMADO** (`AGENDADO` = à espera do aceite): o fluxo é marcar → confirmar →
+marcar como concluído (`REALIZADO`), com `CANCELADO` a qualquer momento. Rótulos e cores ficam em
+`src/lib/agenda/status.ts`, compartilhados com a agenda do aluno e o dashboard.
+
+`agendamentos.data` guarda a meia-noite **local** do dia; hora fica nos campos de texto `HH:MM`, e
+toda a aritmética de horário acontece em minutos (`src/lib/agenda/horarios.ts`).
+
+Cobertura: `tests/agenda-http.test.ts` (26 testes) — autorização, faixas de trabalho (inclusive
+sobreposição recusada), geração dos horários, conflito total e parcial, bloqueio/liberação, dia
+inteiro bloqueado, confirmar/concluir/cancelar/reagendar, as três vistas e o isolamento entre
+Personals.
 
 ## Evolução dos treinos (Fase 11)
 

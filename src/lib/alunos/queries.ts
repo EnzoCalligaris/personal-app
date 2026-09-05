@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
+import { STATUS_ATIVOS } from "@/lib/agenda/status";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { proximosTreinosDeAlunos } from "@/lib/programacoes/queries";
 import type { CriarAlunoInput, EditarAlunoInput, ListarAlunosQuery } from "@/lib/validations/aluno";
@@ -140,7 +141,7 @@ export async function obterAluno(
       _count: { select: { treinos: true, agendamentos: true, avaliacoes: true } },
       historico: { select: { dataExecucao: true }, orderBy: { dataExecucao: "desc" }, take: 1 },
       agendamentos: {
-        where: { data: { gte: new Date() }, status: { in: ["AGENDADO", "REAGENDADO"] } },
+        where: { data: { gte: new Date() }, status: { in: [...STATUS_ATIVOS] } },
         select: { data: true },
         orderBy: { data: "asc" },
         take: 1,

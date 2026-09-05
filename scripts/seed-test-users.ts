@@ -120,6 +120,7 @@ async function main() {
 
   await seedDadosDemo();
   await seedConteudoDoAluno();
+  await seedAgendaDemo();
 
   console.log("\nUsuários de teste (senha para todos):", SENHA_PADRAO);
   for (const u of USERS) {
@@ -142,6 +143,85 @@ function emDias(dias: number, hora = 12) {
   d.setDate(d.getDate() + dias);
   d.setHours(hora, 0, 0, 0);
   return d;
+}
+
+/**
+ * Agenda de demonstração: horários de trabalho de segunda a sexta (manhã e
+ * tarde), um bloqueio e alguns atendimentos na semana. Idempotente - só cria
+ * se o Personal ainda não tiver horários configurados.
+ */
+async function seedAgendaDemo() {
+  const personal = await prisma.personalProfile.findFirst({
+    where: { user: { email: "personal1@teste.com" } },
+    include: { alunos: { include: { user: { select: { email: true } } } } },
+  });
+  if (!personal) return;
+
+  const jaConfigurado = await prisma.disponibilidade.count({ where: { personalId: personal.id } });
+  if (jaConfigurado > 0) return;
+
+  const uteis = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA"] as const;
+
+  await prisma.disponibilidade.createMany({
+    data: uteis.flatMap((diaSemana) => [
+      { personalId: personal.id, diaSemana, horaInicio: "06:00", horaFim: "12:00", duracaoMin: 60 },
+      { personalId: personal.id, diaSemana, horaInicio: "14:00", horaFim: "20:00", duracaoMin: 60 },
+    ]),
+  });
+
+  const ana = personal.alunos.find((a) => a.user.email === "aluno1@teste.com");
+  const bruno = personal.alunos.find((a) => a.user.email === "aluno2@teste.com");
+  if (!ana || !bruno) return;
+
+  // Espalha atendimentos pelos próximos dias úteis, alternando os alunos.
+  const marcados: {
+    personalId: string;
+    alunoId: string;
+    data: Date;
+    horaInicio: string;
+    horaFim: string;
+    status: "AGENDADO" | "CONFIRMADO" | "REALIZADO";
+  }[] = [];
+
+  for (let dias = -2; dias <= 6; dias++) {
+    const data = emDias(dias, 0);
+    const diaDaSemana = data.getDay();
+    if (diaDaSemana === 0 || diaDaSemana === 6) continue;
+
+    const passado = dias < 0;
+    marcados.push({
+      personalId: personal.id,
+      alunoId: ana.id,
+      data,
+      horaInicio: "07:00",
+      horaFim: "08:00",
+      status: passado ? "REALIZADO" : dias === 0 ? "CONFIRMADO" : "AGENDADO",
+    });
+    marcados.push({
+      personalId: personal.id,
+      alunoId: bruno.id,
+      data: new Date(data),
+      horaInicio: "18:00",
+      horaFim: "19:00",
+      status: passado ? "REALIZADO" : "CONFIRMADO",
+    });
+  }
+
+  await prisma.agendamento.createMany({ data: marcados });
+
+  // Um bloqueio para o almoço estendido de amanhã.
+  const amanha = emDias(1, 0);
+  await prisma.bloqueio.create({
+    data: {
+      personalId: personal.id,
+      data: new Date(Date.UTC(amanha.getFullYear(), amanha.getMonth(), amanha.getDate())),
+      horaInicio: "14:00",
+      horaFim: "16:00",
+      motivo: "Consulta médica",
+    },
+  });
+
+  console.log("\n+ agenda de demonstração (horários de trabalho, atendimentos e bloqueio)");
 }
 
 /**
