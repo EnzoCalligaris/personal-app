@@ -13,7 +13,10 @@ import {
 import { duracaoEstimadaMin } from "@/lib/treinos/duracao";
 import { incluirDiasProgramados, ordenarDias } from "@/lib/treinos/queries";
 import { proximoTreinoDoAluno, treinoPrevistoEm, treinosPrevistosPara } from "@/lib/programacoes/queries";
-import type { EditarMeuPerfilInput } from "@/lib/validations/aluno-area";
+import type {
+  EditarMeuPerfilInput,
+  RegistrarExecucaoInput,
+} from "@/lib/validations/aluno-area";
 import type {
   AlunoDashboardResponse,
   DiaDeTreino,
@@ -23,6 +26,7 @@ import type {
   MeuPerfil,
   MeuPersonal,
   MeuTreino,
+  MeuHistoricoResponse,
   MeuTreinoDetalhe,
   MeusTreinosResponse,
   MinhaAgendaResponse,
@@ -43,6 +47,13 @@ export class TreinoNaoEncontradoError extends Error {
   constructor() {
     super("Treino não encontrado.");
     this.name = "TreinoNaoEncontradoError";
+  }
+}
+
+export class ItemInvalidoError extends Error {
+  constructor() {
+    super("Um dos exercícios enviados não faz parte deste treino.");
+    this.name = "ItemInvalidoError";
   }
 }
 
@@ -128,27 +139,15 @@ export async function meusTreinos(alunoId: string): Promise<MeusTreinosResponse>
     }),
     prisma.historicoTreino.findMany({
       where: { alunoId },
-      select: {
-        id: true,
-        dataExecucao: true,
-        concluido: true,
-        observacoes: true,
-        treino: { select: { id: true, nome: true } },
-      },
+      include: includeExecucao,
       orderBy: { dataExecucao: "desc" },
-      take: 20,
+      take: 5,
     }),
   ]);
 
   return {
     treinos: treinos.map(toMeuTreino),
-    historico: historico.map((item) => ({
-      id: item.id,
-      data: item.dataExecucao.toISOString(),
-      concluido: item.concluido,
-      observacoes: item.observacoes,
-      treino: item.treino,
-    })),
+    historico: historico.map(toExecucao),
   };
 }
 
@@ -201,17 +200,81 @@ export async function meuTreino(
   };
 }
 
-/** Registra a execução do treino pelo próprio aluno. */
+/* -------------------------------------------------------------------------
+   Execução e histórico
+   ------------------------------------------------------------------------- */
+
+const includeExecucao = {
+  treino: { select: { id: true, nome: true } },
+  itens: { orderBy: { ordem: "asc" } },
+} satisfies Prisma.HistoricoTreinoInclude;
+
+type ExecucaoRaw = Prisma.HistoricoTreinoGetPayload<{ include: typeof includeExecucao }>;
+
+function toExecucao(execucao: ExecucaoRaw): ExecucaoRegistrada {
+  const itens = execucao.itens.map((item) => ({
+    id: item.id,
+    ordem: item.ordem,
+    nome: item.nome,
+    grupoMuscular: item.grupoMuscular,
+    series: item.series,
+    repeticoes: item.repeticoes,
+    carga: item.carga,
+    concluido: item.concluido,
+    observacoes: item.observacoes,
+  }));
+
+  const concluidos = itens.filter((item) => item.concluido);
+
+  return {
+    id: execucao.id,
+    data: execucao.dataExecucao.toISOString(),
+    concluido: execucao.concluido,
+    observacoes: execucao.observacoes,
+    duracaoSeg: execucao.duracaoSeg,
+    treino: execucao.treino,
+    itens,
+    exerciciosConcluidos: concluidos.length,
+    totalExercicios: itens.length,
+    totalSeries: concluidos.reduce((total, item) => total + item.series, 0),
+  };
+}
+
+/**
+ * Registra a execução do treino pelo próprio aluno.
+ *
+ * Os itens gravados são um retrato do momento: nome e grupo muscular vêm da
+ * ficha (o cliente não decide o que ficou registrado), enquanto séries,
+ * repetições e carga aceitam o que o aluno realmente fez - caindo para o
+ * prescrito quando ele não ajusta nada. Sem `itens`, a ficha inteira é
+ * registrada como feita.
+ */
 export async function registrarExecucao(
   alunoId: string,
   treinoId: string,
-  input: { observacoes?: string | null; concluido?: boolean }
+  input: RegistrarExecucaoInput
 ): Promise<ExecucaoRegistrada> {
   const treino = await prisma.treino.findFirst({
     where: { id: treinoId, alunoId },
-    select: { id: true, nome: true },
+    include: {
+      exercicios: {
+        orderBy: { ordem: "asc" },
+        include: { exercicio: { select: { id: true, nome: true, grupoMuscular: true } } },
+      },
+    },
   });
   if (!treino) throw new TreinoNaoEncontradoError();
+
+  const prescritos = new Map(treino.exercicios.map((item) => [item.id, item]));
+
+  for (const item of input.itens ?? []) {
+    // Um id que não é deste treino não vira registro silencioso.
+    if (!prescritos.has(item.treinoExercicioId)) throw new ItemInvalidoError();
+  }
+
+  const realizados = input.itens?.length
+    ? input.itens.map((item) => ({ prescrito: prescritos.get(item.treinoExercicioId)!, item }))
+    : treino.exercicios.map((prescrito) => ({ prescrito, item: undefined }));
 
   const execucao = await prisma.historicoTreino.create({
     data: {
@@ -219,15 +282,57 @@ export async function registrarExecucao(
       alunoId,
       concluido: input.concluido ?? true,
       observacoes: input.observacoes?.trim() || null,
+      duracaoSeg: input.duracaoSeg ?? null,
+      itens: {
+        create: realizados.map(({ prescrito, item }, indice) => ({
+          exercicioId: prescrito.exercicio.id,
+          // A ordem vem da posição enviada: é a ordem em que o aluno treinou.
+          ordem: indice + 1,
+          nome: prescrito.exercicio.nome,
+          grupoMuscular: prescrito.exercicio.grupoMuscular,
+          series: item?.series ?? prescrito.series,
+          repeticoes: item?.repeticoes?.trim() || prescrito.repeticoes,
+          carga: item?.carga?.trim() ?? prescrito.carga,
+          concluido: item?.concluido ?? true,
+          observacoes: item?.observacoes?.trim() || null,
+        })),
+      },
     },
+    include: includeExecucao,
   });
 
+  return toExecucao(execucao);
+}
+
+/** Histórico completo de execuções do aluno, com o que foi feito em cada uma. */
+export async function meuHistorico(alunoId: string, limite = 50): Promise<MeuHistoricoResponse> {
+  const trintaDiasAtras = new Date();
+  trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+
+  const [execucoes, total, noMes, duracoes] = await Promise.all([
+    prisma.historicoTreino.findMany({
+      where: { alunoId },
+      include: includeExecucao,
+      orderBy: { dataExecucao: "desc" },
+      take: limite,
+    }),
+    prisma.historicoTreino.count({ where: { alunoId } }),
+    prisma.historicoTreino.count({
+      where: { alunoId, dataExecucao: { gte: trintaDiasAtras } },
+    }),
+    prisma.historicoTreino.aggregate({
+      where: { alunoId },
+      _sum: { duracaoSeg: true },
+    }),
+  ]);
+
   return {
-    id: execucao.id,
-    data: execucao.dataExecucao.toISOString(),
-    concluido: execucao.concluido,
-    observacoes: execucao.observacoes,
-    treino,
+    execucoes: execucoes.map(toExecucao),
+    resumo: {
+      total,
+      noMes,
+      minutosTotais: Math.round((duracoes._sum.duracaoSeg ?? 0) / 60),
+    },
   };
 }
 

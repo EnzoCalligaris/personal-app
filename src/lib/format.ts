@@ -101,3 +101,16 @@ export function formatarVariacao(valor: number, casas = 1) {
     maximumFractionDigits: casas,
   })}`;
 }
+
+/** 95 -> "1:35"; 3725 -> "1:02:05". Para cronômetro e descanso. */
+export function formatarCronometro(segundos: number) {
+  const total = Math.max(0, Math.floor(segundos));
+  const horas = Math.floor(total / 3600);
+  const minutos = Math.floor((total % 3600) / 60);
+  const resto = total % 60;
+
+  const mm = String(minutos).padStart(horas > 0 ? 2 : 1, "0");
+  const ss = String(resto).padStart(2, "0");
+
+  return horas > 0 ? `${horas}:${mm}:${ss}` : `${mm}:${ss}`;
+}

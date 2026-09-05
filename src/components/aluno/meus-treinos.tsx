@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  ArrowRightIcon,
   CalendarCheckIcon,
   ChevronRightIcon,
   ClockIcon,
@@ -10,14 +11,19 @@ import {
 } from "lucide-react";
 
 import { useApi } from "@/hooks/use-api";
-import {
-  diasProgramadosLabel,
-  formatarDataRelativa,
-} from "@/lib/format";
+import { diasProgramadosLabel, formatarCronometro, formatarDataRelativa } from "@/lib/format";
 import { formatarDuracao } from "@/lib/treinos/duracao";
 import type { MeusTreinosResponse } from "@/types/aluno-area";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -96,8 +102,14 @@ export function MeusTreinos() {
 
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>Histórico</CardTitle>
-          <CardDescription>Os treinos que você marcou como feitos.</CardDescription>
+          <CardTitle>Últimos treinos</CardTitle>
+          <CardDescription>As sessões que você registrou.</CardDescription>
+          <CardAction>
+            <Button variant="ghost" size="sm" render={<Link href="/aluno/historico" />}>
+              Ver histórico
+              <ArrowRightIcon />
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardContent>
           {loading || !data ? (
@@ -107,7 +119,7 @@ export function MeusTreinos() {
               size="sm"
               icon={CalendarCheckIcon}
               title="Nada registrado ainda"
-              description="Ao terminar um treino, toque em 'Concluir treino' para ele entrar no seu histórico."
+              description="Ao terminar uma sessão de treino, ela entra no seu histórico com tudo o que você fez."
             />
           ) : (
             <ul className="flex flex-col divide-y divide-border">
@@ -121,11 +133,11 @@ export function MeusTreinos() {
                   </span>
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-sm font-medium">{item.treino.nome}</span>
-                    {item.observacoes ? (
-                      <span className="truncate text-xs text-muted-foreground">
-                        {item.observacoes}
-                      </span>
-                    ) : null}
+                    <span className="truncate text-xs text-muted-foreground tabular-nums">
+                      {item.exerciciosConcluidos}/{item.totalExercicios} exercícios
+                      {item.totalSeries ? ` · ${item.totalSeries} séries` : ""}
+                      {item.duracaoSeg ? ` · ${formatarCronometro(item.duracaoSeg)}` : ""}
+                    </span>
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {formatarDataRelativa(item.data)}

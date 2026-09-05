@@ -28,12 +28,44 @@ export type MeusTreinosResponse = {
   historico: ExecucaoRegistrada[];
 };
 
+/** Um exercício como ele foi realizado na sessão (retrato do momento). */
+export type ExercicioExecutado = {
+  id: string;
+  ordem: number;
+  nome: string;
+  grupoMuscular: string;
+  series: number;
+  repeticoes: string;
+  carga: string | null;
+  concluido: boolean;
+  observacoes: string | null;
+};
+
 export type ExecucaoRegistrada = {
   id: string;
   data: string;
   concluido: boolean;
   observacoes: string | null;
+  /** Tempo cronometrado da sessão, quando ela passou pela tela de execução. */
+  duracaoSeg: number | null;
   treino: { id: string; nome: string };
+  itens: ExercicioExecutado[];
+  /** Exercícios marcados como feitos / total registrado. */
+  exerciciosConcluidos: number;
+  totalExercicios: number;
+  /** Soma das séries concluídas. */
+  totalSeries: number;
+};
+
+export type MeuHistoricoResponse = {
+  execucoes: ExecucaoRegistrada[];
+  resumo: {
+    total: number;
+    /** Execuções nos últimos 30 dias. */
+    noMes: number;
+    /** Minutos somados das sessões cronometradas. */
+    minutosTotais: number;
+  };
 };
 
 /** O que está previsto para uma data, já com a ficha resumida. */

@@ -206,7 +206,7 @@ function TreinoDeHoje({ dia }: { dia: DiaDeTreino }) {
         </dl>
 
         <div className="flex flex-wrap gap-2">
-          <Button size="lg" render={<Link href={`/aluno/treinos/${treino.id}`} />}>
+          <Button size="lg" render={<Link href={`/aluno/treinos/${treino.id}/sessao`} />}>
             <PlayIcon />
             {dia.executado ? "Treinar de novo" : "Começar treino"}
           </Button>

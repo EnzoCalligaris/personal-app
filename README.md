@@ -135,6 +135,53 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
 
+## Execução do treino (Fase 10)
+
+"Começar treino" abre `/aluno/treinos/[id]/sessao`: uma tela por exercício, feita para o celular
+na mão entre as séries.
+
+O que ela mostra e faz:
+
+- **Topo fixo** com o nome do treino, o progresso (`3 / 8 exercícios`), a barra de andamento e o
+  cronômetro da sessão; ao lado, a trilha numerada dos exercícios (feito / atual / pendente), que
+  também serve para pular direto para um deles.
+- **Exercício atual** com imagem (ou o link do vídeo, quando o Personal cadastrou), grupo muscular,
+  a prescrição em destaque - séries, repetições, carga e descanso - e as **observações do Personal**.
+- **Séries**: um botão grande por série; marcar uma série dispara o descanso automaticamente
+  (exceto na última, que emenda no próximo exercício).
+- **Carga usada / repetições feitas**: campos já preenchidos com o prescrito, para o aluno corrigir
+  quando treinar diferente do combinado.
+- **Concluir exercício** marca o exercício, atualiza o progresso, avança e inicia o descanso.
+- **Descanso**: contagem regressiva com barra, `+15s` e *Pular*, com vibração ao terminar. O fim é
+  agendado por `setTimeout` (e não pela contagem), então continua correto se o navegador engasgar o
+  intervalo com a tela bloqueada.
+- **Resumo** antes de fechar: tempo, exercícios, séries e a lista do que foi feito, mais um campo de
+  observações. Ao confirmar, aparece **"Treino concluído!"** com o resumo da sessão.
+
+O andamento fica no `localStorage` (`pulse:sessao:<treinoId>`): recarregar a página no meio do
+treino não perde nada. Uma sessão parada há mais de 6 horas é descartada em vez de retomada.
+
+O que vai para o banco (`POST /api/aluno/treinos/[id]/execucoes`):
+
+| Onde | O que guarda |
+| ---- | ------------ |
+| `historico_treinos` | data, treino, aluno, se foi concluído, observações e **duração** da sessão |
+| `historico_exercicios` | um registro por exercício: ordem, nome, grupo muscular, **séries, repetições, carga**, se foi concluído |
+
+Os itens são um **retrato do momento**: nome e grupo muscular são copiados da ficha na hora de
+gravar, então renomear ou apagar um exercício depois não reescreve o passado (o vínculo com a
+biblioteca vira nulo, o registro permanece). Séries, repetições e carga vêm do que o aluno fez,
+caindo para o prescrito quando ele não ajusta nada; enviar um exercício que não pertence à ficha
+responde 400, e a ficha de outro aluno, 404.
+
+O histórico fica em **`/aluno/historico`** (`GET /api/aluno/historico`): cada sessão com data,
+duração, exercícios concluídos e séries, expansível para ver exercício por exercício com a carga
+usada. As últimas sessões também aparecem em `/aluno/treinos`.
+
+Cobertura: `tests/execucao-http.test.ts` (11 testes) - autorização, registro completo com itens,
+recusa de exercício de outra ficha, ficha inteira quando não vêm itens, validações, permanência do
+retrato após a ficha mudar e o isolamento do histórico entre alunos.
+
 ## Área do aluno (Fase 9)
 
 O app que o aluno usa: `/aluno` (início), `/aluno/treinos` (fichas e execução), `/aluno/agenda`,
@@ -156,7 +203,8 @@ O início abre com **"Olá, [Nome] 👋"** e mostra, nesta ordem:
 | `GET /api/aluno/dashboard` | Tudo do início: treino de hoje, próximo, resumo, evolução e último feedback |
 | `GET /api/aluno/treinos` | Fichas ativas do aluno + histórico recente de execuções |
 | `GET /api/aluno/treinos/[id]` | Ficha completa, com séries, repetições, carga e descanso |
-| `POST /api/aluno/treinos/[id]/execucoes` | Registra o treino como feito (alimenta histórico e sequência) |
+| `POST /api/aluno/treinos/[id]/execucoes` | Fecha a sessão de treino (ver [Execução do treino](#execução-do-treino-fase-10)) |
+| `GET /api/aluno/historico` | Histórico de execuções, com o que foi feito em cada uma |
 | `GET /api/aluno/agenda` | Agendamentos próximos e anteriores |
 | `GET /api/aluno/evolucao` | Avaliações em ordem cronológica + variações por métrica |
 | `GET /api/aluno/feedbacks` | Comentários do Personal para este aluno |

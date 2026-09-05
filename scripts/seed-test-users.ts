@@ -145,11 +145,6 @@ function emDias(dias: number, hora = 12) {
 }
 
 /**
- * Dados de demonstração para o ambiente de desenvolvimento: exercícios,
- * treinos, agendamentos, execuções e avaliações, para o dashboard ter
- * conteúdo real. Idempotente - não recria se o Personal já tiver exercícios.
- */
-/**
  * Conteúdo que a área do aluno precisa para ter o que mostrar: histórico de
  * avaliações (a evolução precisa de mais de um ponto) e feedbacks do Personal.
  * Roda sempre, criando só o que falta - por isso não depende do bloco acima.
@@ -251,6 +246,11 @@ async function seedConteudoDoAluno() {
   }
 }
 
+/**
+ * Dados de demonstração para o ambiente de desenvolvimento: exercícios,
+ * treinos, programação, agenda e avaliações, para as telas terem conteúdo
+ * real. Idempotente - não recria se o Personal já tiver exercícios.
+ */
 async function seedDadosDemo() {
   const personal = await prisma.personalProfile.findFirst({
     where: { user: { email: "personal1@teste.com" } },
@@ -271,9 +271,23 @@ async function seedDadosDemo() {
 
   const exercicios = await Promise.all(
     [
-      { nome: "Supino reto", grupoMuscular: "Peito" },
-      { nome: "Agachamento livre", grupoMuscular: "Pernas" },
-      { nome: "Remada curvada", grupoMuscular: "Costas" },
+      {
+        nome: "Supino reto",
+        grupoMuscular: "Peito",
+        descricao: "Escápulas retraídas, desça a barra até a linha do mamilo e suba sem travar os cotovelos.",
+        videoUrl: "https://www.youtube.com/watch?v=rT7DgCr-3pg",
+      },
+      {
+        nome: "Agachamento livre",
+        grupoMuscular: "Pernas",
+        descricao: "Pés na largura dos ombros, desça até a coxa ficar paralela ao chão.",
+      },
+      {
+        nome: "Remada curvada",
+        grupoMuscular: "Costas",
+        descricao: "Tronco a 45 graus, puxe a barra em direção ao umbigo.",
+        videoUrl: "https://www.youtube.com/watch?v=9efgcAjQe7E",
+      },
       { nome: "Desenvolvimento militar", grupoMuscular: "Ombros" },
     ].map((exercicio) => prisma.exercicio.create({ data: { ...exercicio, personalId: personal.id } }))
   );

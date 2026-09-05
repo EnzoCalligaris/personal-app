@@ -133,6 +133,7 @@ model Exercicio {
   updatedAt     DateTime        @updatedAt
 
   treinoExercicios TreinoExercicio[]
+  historico        HistoricoExercicio[]
 
   @@index([personalId])
   @@index([personalId, ativo])
@@ -228,10 +229,44 @@ model HistoricoTreino {
   dataExecucao DateTime     @default(now())
   concluido    Boolean      @default(true)
   observacoes  String?
+  // Duração da sessão, cronometrada pela tela de execução. Fica nulo quando o
+  // treino é marcado como feito sem passar pela sessão.
+  duracaoSeg   Int?
+
+  itens HistoricoExercicio[]
 
   @@index([treinoId])
   @@index([alunoId, dataExecucao])
   @@map("historico_treinos")
+}
+
+/**
+ * O que foi de fato realizado em cada exercício da sessão. Os dados são um
+ * retrato do momento (nome, séries, repetições, carga): a ficha pode ser
+ * editada ou apagada depois, e o histórico precisa continuar verdadeiro.
+ */
+model HistoricoExercicio {
+  id          String          @id @default(uuid())
+  historicoId String
+  historico   HistoricoTreino @relation(fields: [historicoId], references: [id], onDelete: Cascade)
+  // Referência à biblioteca, para futuras estatísticas por exercício. Some
+  // se o exercício for excluído - o retrato abaixo permanece.
+  exercicioId String?
+  exercicio   Exercicio?      @relation(fields: [exercicioId], references: [id], onDelete: SetNull)
+
+  ordem         Int
+  nome          String
+  grupoMuscular String
+  // O que o aluno realmente fez (parte da prescrição, parte ajustada por ele).
+  series        Int
+  repeticoes    String
+  carga         String?
+  concluido     Boolean @default(true)
+  observacoes   String?
+
+  @@unique([historicoId, ordem])
+  @@index([exercicioId])
+  @@map("historico_exercicios")
 }
 
 model Disponibilidade {
