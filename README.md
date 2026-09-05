@@ -112,13 +112,16 @@ src/app/                   Rotas (App Router)
 src/app/api/auth/          Cadastro, login, logout, esqueci/redefinir senha
 src/app/api/me/            Dados do usuário autenticado (qualquer role)
 src/app/api/personal/      Endpoints administrativos (role PERSONAL)
+src/app/api/aluno/         Endpoints da área do aluno (role ALUNO, sempre pela sessão)
 src/app/api/alunos/[id]/   Dados de um aluno (dono ou Personal vinculado)
 src/app/auth/callback/     Troca o código do link de e-mail pela sessão
 src/components/auth/       Formulários de login/registro/senha (client components)
+src/components/aluno/      Telas do aluno (início, treinos, agenda, evolução, feedback, perfil)
 src/components/personal/   Telas do Personal (dashboard, alunos, treinos, programação)
 src/components/ui/         Componentes shadcn/ui (Base UI)
 src/lib/auth/session.ts    Resolve o usuário autenticado + role (AuthContext)
 src/lib/auth/guards.ts     requireAuth/requirePersonal/requireAluno + regras de ownership
+src/lib/aluno/             Consultas da área do aluno (escopadas pelo perfil da sessão)
 src/lib/programacoes/      Programação semanal + resolução do treino previsto por data
 src/lib/prisma.ts          Cliente Prisma (adapter-pg)
 src/lib/supabase/          Clientes Supabase (browser, server, admin, middleware)
@@ -131,6 +134,61 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > anteriores (ex.: `middleware.ts` → `proxy.ts` com export `proxy`; conexão do banco sai do
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
+
+## Área do aluno (Fase 9)
+
+O app que o aluno usa: `/aluno` (início), `/aluno/treinos` (fichas e execução), `/aluno/agenda`,
+`/aluno/evolucao`, `/aluno/feedback` e `/aluno/perfil`. No desktop a navegação é a sidebar; no
+mobile, a barra inferior com os seis itens.
+
+O início abre com **"Olá, [Nome] 👋"** e mostra, nesta ordem:
+
+- **Treino de hoje** — nome da ficha, quantidade de exercícios, duração estimada e o botão
+  *Começar treino* (mais o horário, quando há atendimento marcado para a data). Sem treino no dia,
+  o card explica se é descanso ou se ainda não há programação.
+- **Próximo treino** — a próxima data com treino previsto, o horário marcado (ou "sem horário") e
+  um resumo da ficha.
+- **Evolução** — os números da última avaliação com a variação em relação à anterior.
+- **Último feedback** — o comentário mais recente do Personal.
+
+| Endpoint | O que faz |
+| -------- | --------- |
+| `GET /api/aluno/dashboard` | Tudo do início: treino de hoje, próximo, resumo, evolução e último feedback |
+| `GET /api/aluno/treinos` | Fichas ativas do aluno + histórico recente de execuções |
+| `GET /api/aluno/treinos/[id]` | Ficha completa, com séries, repetições, carga e descanso |
+| `POST /api/aluno/treinos/[id]/execucoes` | Registra o treino como feito (alimenta histórico e sequência) |
+| `GET /api/aluno/agenda` | Agendamentos próximos e anteriores |
+| `GET /api/aluno/evolucao` | Avaliações em ordem cronológica + variações por métrica |
+| `GET /api/aluno/feedbacks` | Comentários do Personal para este aluno |
+| `GET/PATCH /api/aluno/perfil` | Dados do próprio aluno (nome, telefone, nascimento, altura, objetivo) |
+
+Como o isolamento é garantido:
+
+- **Nenhuma rota de `/api/aluno/*` aceita id de aluno.** O `alunoId` sai sempre da sessão
+  (`requireAluno` → `ctx.alunoProfileId`), então não existe parâmetro para trocar e pedir os dados
+  de outra pessoa.
+- Consultas por id de outro recurso (uma ficha, por exemplo) levam `alunoId` no `where`: o treino
+  de outro aluno responde **404**, e o mesmo vale para registrar execução nele.
+- O `PATCH /api/aluno/perfil` só aceita os campos do próprio cadastro. E-mail, status e vínculo com
+  o Personal ficam de fora do schema - enviá-los não muda nada.
+- Um Personal recebe **403** em `/api/aluno/*` (assim como o aluno continua recebendo 403 em
+  `/api/personal/*`).
+
+Detalhes de implementação:
+
+- **Duração estimada** (`src/lib/treinos/duracao.ts`): cada série custa ~45s de execução mais o
+  descanso configurado (60s quando não há), somados 5 min de aquecimento; o resultado é arredondado
+  para múltiplos de 5, porque a estimativa não tem precisão de minuto.
+- **Treino de hoje / próximo treino** saem da mesma resolução da programação usada pelo Personal
+  (`treinoPrevistoEm` / `proximoTreinoDoAluno`), com o horário vindo do agendamento daquela data.
+- **Sequência**: dias seguidos com treino previsto *e* executado. Descanso e dias sem programação
+  não quebram a contagem (não havia treino a fazer); o dia de hoje ainda não executado também não,
+  porque o dia não acabou.
+- **Gráfico de evolução**: SVG escrito à mão (`grafico-evolucao.tsx`), sem biblioteca de charts -
+  escala com o container e respeita os tokens de tema.
+- Cobertura: `tests/aluno-http.test.ts` (23 testes) cobre autorização, o conteúdo do dashboard,
+  execução de treino, agenda, evolução, feedbacks e edição de perfil - sempre com dois alunos do
+  mesmo Personal, para provar que um não enxerga nada do outro.
 
 ## Programação de treinos (Fase 8)
 

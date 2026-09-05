@@ -1,6 +1,14 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { diaSemanaDe, diasAtras, fimDoDia, hojeUTC, inicioDoDia, paraISO } from "@/lib/date-utils";
+import {
+  dataDoInstante,
+  diaSemanaDe,
+  diasAtras,
+  fimDoDia,
+  hojeUTC,
+  inicioDoDia,
+  paraISO,
+} from "@/lib/date-utils";
 import {
   proximosTreinosDeAlunos,
   treinosPrevistosHoje,
@@ -20,13 +28,6 @@ const JANELA_ATIVIDADE_DIAS = 30;
 const LIMITE_AGENDA = 8;
 const LIMITE_ALUNOS = 5;
 const LIMITE_AVALIACOES = 5;
-
-/** O agendamento guarda um instante; a programação raciocina em datas. */
-function dataDoAgendamento(instante: Date) {
-  return new Date(
-    Date.UTC(instante.getFullYear(), instante.getMonth(), instante.getDate())
-  );
-}
 
 /**
  * Monta o dashboard do Personal a partir do banco. Tudo é filtrado pelo
@@ -109,7 +110,7 @@ export async function getDashboardData(
   const previstosNaAgenda = await treinosPrevistosPara(
     agendamentos.map((item) => ({
       alunoId: item.alunoId,
-      data: dataDoAgendamento(item.data),
+      data: dataDoInstante(item.data),
     }))
   );
 
@@ -117,7 +118,7 @@ export async function getDashboardData(
 
   const mapAgendamento = (item: AgendamentoRaw): DashboardAgendamento => {
     const previsto = previstosNaAgenda.get(
-      `${item.alunoId}:${paraISO(dataDoAgendamento(item.data))}`
+      `${item.alunoId}:${paraISO(dataDoInstante(item.data))}`
     );
 
     return {

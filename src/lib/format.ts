@@ -61,3 +61,43 @@ export function iniciais(nome: string) {
     .map((parte) => parte[0]?.toUpperCase())
     .join("");
 }
+
+/**
+ * Datas de calendário ("2026-09-07") viram Date no fuso local, não em UTC:
+ * `new Date("2026-09-07")` seria meia-noite UTC e, num fuso negativo, cairia
+ * no dia 06 na hora de formatar.
+ */
+function dataLocalDe(iso: string) {
+  const [ano, mes, dia] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(ano, mes - 1, dia);
+}
+
+/** "2026-09-07" -> "07 de set." */
+export function formatarDataCalendario(iso: string) {
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(
+    dataLocalDe(iso)
+  );
+}
+
+/** "2026-09-07" -> "segunda-feira, 7 de setembro" */
+export function formatarDiaPorExtenso(iso: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(dataLocalDe(iso));
+}
+
+/** "08:00" + "09:00" -> "08:00 às 09:00" */
+export function formatarIntervaloHorario(inicio: string, fim: string) {
+  return `${inicio} às ${fim}`;
+}
+
+/** -1.2 -> "-1,2"; 0.8 -> "+0,8" */
+export function formatarVariacao(valor: number, casas = 1) {
+  const sinal = valor > 0 ? "+" : "";
+  return `${sinal}${valor.toLocaleString("pt-BR", {
+    minimumFractionDigits: casas,
+    maximumFractionDigits: casas,
+  })}`;
+}

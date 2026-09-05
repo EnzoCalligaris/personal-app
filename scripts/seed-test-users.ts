@@ -119,6 +119,7 @@ async function main() {
   }
 
   await seedDadosDemo();
+  await seedConteudoDoAluno();
 
   console.log("\nUsuários de teste (senha para todos):", SENHA_PADRAO);
   for (const u of USERS) {
@@ -148,6 +149,108 @@ function emDias(dias: number, hora = 12) {
  * treinos, agendamentos, execuções e avaliações, para o dashboard ter
  * conteúdo real. Idempotente - não recria se o Personal já tiver exercícios.
  */
+/**
+ * Conteúdo que a área do aluno precisa para ter o que mostrar: histórico de
+ * avaliações (a evolução precisa de mais de um ponto) e feedbacks do Personal.
+ * Roda sempre, criando só o que falta - por isso não depende do bloco acima.
+ */
+async function seedConteudoDoAluno() {
+  const ana = await prisma.alunoProfile.findFirst({
+    where: { user: { email: "aluno1@teste.com" } },
+    select: { id: true, personalId: true },
+  });
+  if (!ana?.personalId) return;
+
+  const personalId = ana.personalId;
+  let criados = 0;
+
+  // A evolução fica sem gráfico com uma única avaliação.
+  const avaliacoes = await prisma.avaliacao.count({ where: { alunoId: ana.id } });
+  if (avaliacoes < 3) {
+    await prisma.avaliacao.createMany({
+      data: [
+        {
+          personalId,
+          alunoId: ana.id,
+          data: emDias(-90),
+          peso: 66.8,
+          percentualGordura: 28.4,
+          massaMagra: 47.8,
+          imc: 23.7,
+          medidas: { cintura: 78, quadril: 98, braco: 28 },
+        },
+        {
+          personalId,
+          alunoId: ana.id,
+          data: emDias(-45),
+          peso: 64.5,
+          percentualGordura: 26.2,
+          massaMagra: 47.6,
+          imc: 22.9,
+          medidas: { cintura: 75, quadril: 96, braco: 29 },
+        },
+      ],
+      skipDuplicates: true,
+    });
+    criados += 2;
+  }
+
+  const feedbacks = await prisma.feedback.count({ where: { alunoId: ana.id } });
+  if (feedbacks === 0) {
+    const ultimaAvaliacao = await prisma.avaliacao.findFirst({
+      where: { alunoId: ana.id },
+      orderBy: { data: "desc" },
+      select: { id: true },
+    });
+
+    await prisma.feedback.createMany({
+      data: [
+        {
+          personalId,
+          alunoId: ana.id,
+          texto:
+            "Primeiro mês fechado com 90% de presença. A base está pronta - agora começamos a subir carga.",
+          createdAt: emDias(-40),
+        },
+        {
+          personalId,
+          alunoId: ana.id,
+          avaliacaoId: ultimaAvaliacao?.id ?? null,
+          texto:
+            "Ótima evolução na composição corporal: -2,1 kg de gordura mantendo a massa magra. Seguir com o Treino A e B e caprichar no descanso entre as séries.",
+          createdAt: emDias(-3),
+        },
+      ],
+    });
+    criados += 2;
+  }
+
+  // Uma execução recente para o histórico e a sequência não nascerem vazios.
+  const execucoes = await prisma.historicoTreino.count({ where: { alunoId: ana.id } });
+  if (execucoes === 0) {
+    const treino = await prisma.treino.findFirst({
+      where: { alunoId: ana.id, ativo: true },
+      select: { id: true },
+    });
+    if (treino) {
+      await prisma.historicoTreino.create({
+        data: {
+          treinoId: treino.id,
+          alunoId: ana.id,
+          dataExecucao: emDias(-1),
+          concluido: true,
+          observacoes: "Consegui fechar todas as séries do supino com 40kg.",
+        },
+      });
+      criados += 1;
+    }
+  }
+
+  if (criados > 0) {
+    console.log(`\n+ conteúdo da área do aluno (${criados} registros)`);
+  }
+}
+
 async function seedDadosDemo() {
   const personal = await prisma.personalProfile.findFirst({
     where: { user: { email: "personal1@teste.com" } },

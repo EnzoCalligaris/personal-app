@@ -66,7 +66,7 @@ async function garantirExercicioDoPersonal(personalId: string, exercicioId: stri
  * Dias em que o treino está prescrito na programação que vale hoje. O dia da
  * semana não é mais um campo do treino: quem define isso é a programação.
  */
-function incluirDiasProgramados(hoje: Date) {
+export function incluirDiasProgramados(hoje: Date) {
   return {
     where: {
       programacao: {
@@ -96,7 +96,7 @@ type TreinoResumoRaw = Prisma.TreinoGetPayload<{
 }>;
 
 /** Ordena os dias na sequência da semana (domingo -> sábado). */
-function ordenarDias(dias: { diaSemana: DiaSemana }[]): DiaSemana[] {
+export function ordenarDias(dias: { diaSemana: DiaSemana }[]): DiaSemana[] {
   return DIAS_SEMANA.filter((dia) => dias.some((item) => item.diaSemana === dia));
 }
 

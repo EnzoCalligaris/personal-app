@@ -5,6 +5,7 @@ import {
   DumbbellIcon,
   HouseIcon,
   ListChecksIcon,
+  MessageSquareTextIcon,
   TrendingUpIcon,
   UserRoundIcon,
   UsersRoundIcon,
@@ -16,7 +17,7 @@ export type NavItem = {
   shortLabel?: string;
   href: string;
   icon: LucideIcon;
-  /** Se falso, aparece só na sidebar/rail (a barra inferior cabe 5 itens). */
+  /** Se falso, aparece só na sidebar/rail (a barra inferior cabe 6 itens). */
   inBottomNav?: boolean;
 };
 
@@ -36,9 +37,10 @@ export const personalNav: NavItem[] = [
 
 export const alunoNav: NavItem[] = [
   { label: "Início", href: "/aluno", icon: HouseIcon },
-  { label: "Meu treino", shortLabel: "Treino", href: "/aluno/treinos", icon: DumbbellIcon },
+  { label: "Treinos", href: "/aluno/treinos", icon: DumbbellIcon },
   { label: "Agenda", href: "/aluno/agenda", icon: CalendarDaysIcon },
   { label: "Evolução", href: "/aluno/evolucao", icon: TrendingUpIcon },
+  { label: "Feedback", href: "/aluno/feedback", icon: MessageSquareTextIcon },
   { label: "Perfil", href: "/aluno/perfil", icon: UserRoundIcon },
 ];
 
@@ -54,9 +56,9 @@ export const navConfigs = {
 
 export type NavKey = keyof typeof navConfigs;
 
-/** Itens exibidos na barra inferior do mobile (no máximo 5). */
+/** Itens exibidos na barra inferior do mobile (no máximo 6). */
 export function bottomNavItems(items: NavItem[]) {
-  return items.filter((item) => item.inBottomNav !== false).slice(0, 5);
+  return items.filter((item) => item.inBottomNav !== false).slice(0, 6);
 }
 
 /** Marca a rota ativa considerando rotas aninhadas, sem casar "/personal" com tudo. */

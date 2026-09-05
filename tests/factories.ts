@@ -72,7 +72,18 @@ export async function createExercicio(personalId: string, overrides?: { nome?: s
 export async function createTreino(
   personalId: string,
   alunoId: string,
-  overrides?: { nome?: string; ativo?: boolean }
+  overrides?: {
+    nome?: string;
+    ativo?: boolean;
+    exercicios?: {
+      exercicioId: string;
+      ordem: number;
+      series: number;
+      repeticoes: string;
+      carga?: string;
+      descansoSeg?: number;
+    }[];
+  }
 ) {
   return prisma.treino.create({
     data: {
@@ -80,6 +91,23 @@ export async function createTreino(
       alunoId,
       nome: overrides?.nome ?? "Treino de teste",
       ativo: overrides?.ativo ?? true,
+      ...(overrides?.exercicios ? { exercicios: { create: overrides.exercicios } } : {}),
+    },
+  });
+}
+
+export async function createFeedback(
+  personalId: string,
+  alunoId: string,
+  overrides?: { texto?: string; avaliacaoId?: string; createdAt?: Date }
+) {
+  return prisma.feedback.create({
+    data: {
+      personalId,
+      alunoId,
+      texto: overrides?.texto ?? "Boa evolução, seguir com o plano.",
+      avaliacaoId: overrides?.avaliacaoId ?? null,
+      ...(overrides?.createdAt ? { createdAt: overrides.createdAt } : {}),
     },
   });
 }

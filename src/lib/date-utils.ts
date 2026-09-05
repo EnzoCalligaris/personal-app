@@ -76,3 +76,24 @@ export function intervaloDeDatas(de: Date, ate: Date): Date[] {
   }
   return datas;
 }
+
+/**
+ * Instante -> data de calendário (UTC). Agendamentos guardam um instante e a
+ * programação raciocina em datas; é assim que os dois se encontram.
+ */
+export function dataDoInstante(instante: Date): Date {
+  return new Date(
+    Date.UTC(instante.getFullYear(), instante.getMonth(), instante.getDate())
+  );
+}
+
+/** Começo e fim (no fuso local) do dia de uma data de calendário. */
+export function limitesDoDiaLocal(data: Date): { de: Date; ate: Date } {
+  const ano = data.getUTCFullYear();
+  const mes = data.getUTCMonth();
+  const dia = data.getUTCDate();
+  return {
+    de: new Date(ano, mes, dia, 0, 0, 0, 0),
+    ate: new Date(ano, mes, dia, 23, 59, 59, 999),
+  };
+}
