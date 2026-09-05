@@ -4,19 +4,19 @@ import { requirePersonal } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { enviarImagem, validarImagem } from "@/lib/storage/imagens";
 
-/** Envia a foto do aluno para o Supabase Storage e salva a URL no usuário. */
+/** Envia a imagem de demonstração do exercício e salva a URL. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requirePersonal();
   if (!auth.ok) return auth.response;
 
   const { id } = await params;
-  const aluno = await prisma.alunoProfile.findFirst({
+  const exercicio = await prisma.exercicio.findFirst({
     where: { id, personalId: auth.ctx.personalProfileId! },
-    select: { id: true, userId: true },
+    select: { id: true },
   });
 
-  if (!aluno) {
-    return NextResponse.json({ error: "Aluno não encontrado." }, { status: 404 });
+  if (!exercicio) {
+    return NextResponse.json({ error: "Exercício não encontrado." }, { status: 404 });
   }
 
   const form = await request.formData().catch(() => null);
@@ -26,18 +26,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (erro) return NextResponse.json({ error: erro }, { status: 400 });
 
   try {
-    const avatarUrl = await enviarImagem({
-      bucket: "avatars",
-      pasta: "alunos",
-      nomeBase: aluno.id,
+    const imagemUrl = await enviarImagem({
+      bucket: "exercicios",
+      pasta: "demonstracoes",
+      nomeBase: exercicio.id,
       file: file as File,
     });
 
-    await prisma.user.update({ where: { id: aluno.userId }, data: { avatarUrl } });
+    await prisma.exercicio.update({ where: { id: exercicio.id }, data: { imagemUrl } });
 
-    return NextResponse.json({ avatarUrl });
+    return NextResponse.json({ imagemUrl });
   } catch (error) {
-    console.error("Falha ao enviar a foto do aluno:", error);
-    return NextResponse.json({ error: "Não foi possível enviar a foto." }, { status: 500 });
+    console.error("Falha ao enviar a imagem do exercício:", error);
+    return NextResponse.json({ error: "Não foi possível enviar a imagem." }, { status: 500 });
   }
 }

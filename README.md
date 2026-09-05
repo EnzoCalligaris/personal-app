@@ -130,6 +130,32 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
 
+## Biblioteca de exercícios (Fase 6)
+
+CRUD da biblioteca em `/personal/exercicios`: cadastrar, editar, buscar (nome/descrição), filtrar
+por grupo muscular e por status, arquivar/restaurar e excluir. Cada exercício tem nome, grupo
+muscular, descrição de execução, vídeo de referência (URL) e imagem de demonstração.
+
+| Endpoint | O que faz |
+| -------- | --------- |
+| `GET /api/personal/exercicios` | Lista com busca (`q`), filtro (`grupo`, `status`) e ordenação; devolve contagens e os grupos presentes |
+| `POST /api/personal/exercicios` | Cadastra um exercício |
+| `GET/PATCH /api/personal/exercicios/[id]` | Detalhe e edição (inclui arquivar via `ativo`) |
+| `DELETE /api/personal/exercicios/[id]` | Exclui — recusa com **409** se o exercício estiver em algum treino |
+| `POST /api/personal/exercicios/[id]/imagem` | Envia a imagem de demonstração para o Storage |
+
+Decisões que valem registrar:
+
+- **Arquivar em vez de excluir**: a FK de `treino_exercicios` é em cascata, então apagar um
+  exercício em uso o removeria silenciosamente das fichas já montadas. A exclusão só é permitida
+  quando o exercício não está em nenhum treino; caso contrário a API responde 409 e a interface
+  oferece **arquivar** (sai da biblioteca ativa, os treinos continuam intactos).
+- **Nome único por Personal**, ignorando maiúsculas — dois Personals podem ter "Supino reto".
+- **Grupos musculares padronizados** em `src/lib/validations/exercicio.ts`: o banco guarda texto,
+  mas a lista canônica mantém o filtro consistente.
+- **Vídeo é uma URL** (link do YouTube etc.), não upload; a **imagem** é upload real para o bucket
+  `exercicios` do Supabase Storage, feito pelo card depois de salvar o exercício.
+
 ## Gerenciamento de alunos (Fase 5)
 
 CRUD completo em `/personal/alunos`, com página de detalhe em

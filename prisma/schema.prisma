@@ -123,11 +123,17 @@ model Exercicio {
   descricao     String?
   videoUrl      String?
   imagemUrl     String?
+  // Arquivar em vez de excluir: exercício já usado em treinos não pode ser
+  // apagado (a FK é em cascata e o esvaziaria das fichas), mas pode sair da
+  // biblioteca ativa.
+  ativo         Boolean         @default(true)
   createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   treinoExercicios TreinoExercicio[]
 
   @@index([personalId])
+  @@index([personalId, ativo])
   @@map("exercicios")
 }
 
