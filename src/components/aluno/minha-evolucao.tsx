@@ -12,7 +12,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EvolucaoDosTreinos } from "@/components/aluno/evolucao-treinos";
 import { GraficoEvolucao } from "@/components/aluno/grafico-evolucao";
 
 type ChaveMetrica = "peso" | "percentualGordura" | "massaMagra" | "imc";
@@ -30,7 +32,36 @@ const METRICAS: {
   { chave: "imc", rotulo: "IMC", unidade: "", menorMelhor: true },
 ];
 
+/** A área de evolução do aluno: como os treinos e o corpo vêm mudando. */
 export function MinhaEvolucao() {
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Seu progresso"
+        title="Evolução"
+        description="Como seus treinos e seu corpo estão evoluindo ao longo do tempo."
+      />
+
+      <Tabs defaultValue="treinos">
+        <TabsList className="w-full sm:w-fit">
+          <TabsTrigger value="treinos">Treinos</TabsTrigger>
+          <TabsTrigger value="corpo">Corpo</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="treinos" className="pt-4">
+          <EvolucaoDosTreinos />
+        </TabsContent>
+
+        <TabsContent value="corpo" className="pt-4">
+          <EvolucaoCorporal />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+/** Bioimpedância: peso, gordura, massa magra, IMC e medidas. */
+function EvolucaoCorporal() {
   const { data, loading, error, refetch } = useApi<MinhaEvolucaoResponse>("/api/aluno/evolucao");
   const [metrica, setMetrica] = React.useState<ChaveMetrica>("peso");
 
@@ -45,13 +76,7 @@ export function MinhaEvolucao() {
     }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        eyebrow="Bioimpedância"
-        title="Evolução"
-        description="O que suas avaliações mostram ao longo do tempo: composição corporal e medidas."
-      />
-
+    <div className="flex flex-col gap-4">
       {error ? (
         <ErrorState title="Não foi possível carregar sua evolução" detail={error} onRetry={refetch} />
       ) : loading || !data ? (

@@ -57,6 +57,64 @@ export type ExecucaoRegistrada = {
   totalSeries: number;
 };
 
+/* -------------------------------------------------------------------------
+   Evolução dos treinos
+   ------------------------------------------------------------------------- */
+
+/** Uma semana da frequência: quanto foi previsto e quanto foi feito. */
+export type SemanaDeTreino = {
+  inicio: string;
+  fim: string;
+  realizados: number;
+  previstos: number;
+};
+
+/** O exercício em uma sessão: a melhor carga daquele dia. */
+export type PontoDeCarga = {
+  data: string;
+  /** Como estava escrito na ficha ("40kg", "peso corporal"). */
+  carga: string | null;
+  /** O número extraído da carga - null quando não há um. */
+  cargaKg: number | null;
+  series: number;
+  repeticoes: string;
+};
+
+export type EvolucaoExercicio = {
+  chave: string;
+  nome: string;
+  grupoMuscular: string;
+  sessoes: number;
+  registros: PontoDeCarga[];
+  cargaInicial: number | null;
+  cargaAtual: number | null;
+  /** Maior carga já registrada neste exercício. */
+  cargaMaxima: number | null;
+  variacaoKg: number | null;
+  variacaoPercentual: number | null;
+  /** Há pelo menos dois pontos com carga numérica - dá para desenhar. */
+  temGrafico: boolean;
+};
+
+export type ProgressoResponse = {
+  resumo: {
+    /** Sessões registradas como concluídas. */
+    totalConcluidos: number;
+    naSemana: number;
+    /** Média de treinos por semana desde o primeiro registro (máx. 12 semanas). */
+    frequenciaSemanal: number;
+    sequenciaAtual: number;
+    melhorSequencia: number;
+    /** Previsto x realizado nas últimas 4 semanas (null sem programação). */
+    aderencia: { previstos: number; realizados: number } | null;
+    primeiroTreino: string | null;
+  };
+  /** Últimas 12 semanas, da mais antiga para a mais recente. */
+  semanas: SemanaDeTreino[];
+  /** Exercícios já executados, dos mais treinados para os menos. */
+  exercicios: EvolucaoExercicio[];
+};
+
 export type MeuHistoricoResponse = {
   execucoes: ExecucaoRegistrada[];
   resumo: {

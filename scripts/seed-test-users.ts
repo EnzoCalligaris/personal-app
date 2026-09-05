@@ -220,24 +220,57 @@ async function seedConteudoDoAluno() {
     criados += 2;
   }
 
-  // Uma execução recente para o histórico e a sequência não nascerem vazios.
+  // Algumas sessões passadas com a carga subindo, para o histórico e a
+  // evolução por exercício terem uma curva real para mostrar.
   const execucoes = await prisma.historicoTreino.count({ where: { alunoId: ana.id } });
-  if (execucoes === 0) {
+  if (execucoes < 3) {
     const treino = await prisma.treino.findFirst({
       where: { alunoId: ana.id, ativo: true },
-      select: { id: true },
-    });
-    if (treino) {
-      await prisma.historicoTreino.create({
-        data: {
-          treinoId: treino.id,
-          alunoId: ana.id,
-          dataExecucao: emDias(-1),
-          concluido: true,
-          observacoes: "Consegui fechar todas as séries do supino com 40kg.",
+      include: {
+        exercicios: {
+          orderBy: { ordem: "asc" },
+          include: { exercicio: { select: { id: true, nome: true, grupoMuscular: true } } },
         },
-      });
-      criados += 1;
+      },
+    });
+
+    if (treino && treino.exercicios.length > 0) {
+      // Sessões a cada ~4 dias, cada uma com 2,5 kg a mais que a anterior.
+      const sessoes = [-24, -20, -17, -13, -10, -6, -3, -1];
+
+      for (const [indice, dias] of sessoes.entries()) {
+        await prisma.historicoTreino.create({
+          data: {
+            treinoId: treino.id,
+            alunoId: ana.id,
+            dataExecucao: emDias(dias, 7),
+            concluido: true,
+            duracaoSeg: 2700 + indice * 60,
+            observacoes:
+              indice === sessoes.length - 1
+                ? "Consegui fechar todas as séries do supino com a carga nova."
+                : null,
+            itens: {
+              create: treino.exercicios.map((item, posicao) => {
+                const base = Number(item.carga?.replace(/[^\d.,]/g, "").replace(",", ".") ?? "");
+                const carga = Number.isFinite(base) && base > 0 ? base + indice * 2.5 : null;
+
+                return {
+                  exercicioId: item.exercicio.id,
+                  ordem: posicao + 1,
+                  nome: item.exercicio.nome,
+                  grupoMuscular: item.exercicio.grupoMuscular,
+                  series: item.series,
+                  repeticoes: item.repeticoes,
+                  carga: carga ? `${carga}kg` : item.carga,
+                  concluido: true,
+                };
+              }),
+            },
+          },
+        });
+        criados += 1;
+      }
     }
   }
 

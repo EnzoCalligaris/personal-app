@@ -135,6 +135,42 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
 
+## Evolução dos treinos (Fase 11)
+
+`/aluno/evolucao` agora tem duas abas: **Treinos** (o que o aluno vem fazendo) e **Corpo** (a
+bioimpedância, que já existia). O histórico sessão a sessão continua em `/aluno/historico`.
+
+Na aba Treinos, tudo calculado a partir do que foi realmente registrado
+(`GET /api/aluno/progresso`):
+
+- **Treinos concluídos**, **sequência atual** (com a melhor sequência quando ela é maior),
+  **frequência** (média de treinos por semana desde o primeiro registro) e **últimas 4 semanas**
+  no formato "8 de 20 programados", comparando o feito com o que a programação previa.
+- **Frequência semanal**: barras das últimas 12 semanas, com um traço marcando quantos treinos
+  estavam programados em cada uma.
+- **Evolução por exercício**: escolhendo o exercício, aparece a curva de carga e a progressão em
+  texto - `40 kg › 42,5 kg › 45 kg › … › 57,5 kg` -, mais a variação da primeira para a última
+  sessão, a melhor carga já registrada e a lista de datas com séries, repetições e carga.
+
+Decisões que valem registro:
+
+- **Nada é inventado.** Um exercício só entra no gráfico com **duas ou mais** sessões de carga
+  numérica; com menos, ele aparece na lista "outros exercícios registrados", sem curva. Sem nenhum
+  treino concluído, a aba inteira vira um estado vazio explicando que os números aparecem conforme
+  o aluno treinar.
+- **Carga é texto livre** na ficha ("40kg", "peso corporal", "20 lb"), porque é assim que o Personal
+  escreve. `src/lib/treinos/carga.ts` extrai o número quando existe (convertendo libras) e devolve
+  `null` quando não existe - é o que separa o que dá gráfico do que não dá.
+- **Sequência** conta dias de treino seguidos: descanso e dias sem programação não quebram (não
+  havia treino a fazer) e o dia de hoje ainda não treinado também não, porque o dia não acabou.
+- Duas execuções do mesmo exercício no mesmo dia viram um ponto só - o de maior carga.
+- O agrupamento é pelo exercício da biblioteca; se ele for excluído, o histórico mantém o nome
+  registrado e a série continua inteira.
+
+Cobertura: `tests/progresso-http.test.ts` (9 testes) - progressão de carga em ordem, exercício sem
+carga numérica fora do gráfico, contagem de concluídos, frequência semanal, sequência atual e
+melhor, previsto x realizado, isolamento entre alunos e a resposta zerada de quem ainda não treinou.
+
 ## Execução do treino (Fase 10)
 
 "Começar treino" abre `/aluno/treinos/[id]/sessao`: uma tela por exercício, feita para o celular
@@ -207,6 +243,7 @@ O início abre com **"Olá, [Nome] 👋"** e mostra, nesta ordem:
 | `GET /api/aluno/historico` | Histórico de execuções, com o que foi feito em cada uma |
 | `GET /api/aluno/agenda` | Agendamentos próximos e anteriores |
 | `GET /api/aluno/evolucao` | Avaliações em ordem cronológica + variações por métrica |
+| `GET /api/aluno/progresso` | Frequência, sequência e evolução de carga por exercício |
 | `GET /api/aluno/feedbacks` | Comentários do Personal para este aluno |
 | `GET/PATCH /api/aluno/perfil` | Dados do próprio aluno (nome, telefone, nascimento, altura, objetivo) |
 

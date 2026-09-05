@@ -188,3 +188,49 @@ export async function createHistorico(
     },
   });
 }
+
+/** Execução registrada, com o que foi feito em cada exercício. */
+export async function createExecucao(
+  treinoId: string,
+  alunoId: string,
+  overrides?: {
+    dataExecucao?: Date;
+    duracaoSeg?: number | null;
+    concluido?: boolean;
+    observacoes?: string | null;
+    itens?: {
+      exercicioId?: string | null;
+      ordem?: number;
+      nome: string;
+      grupoMuscular?: string;
+      series?: number;
+      repeticoes?: string;
+      carga?: string | null;
+      concluido?: boolean;
+    }[];
+  }
+) {
+  return prisma.historicoTreino.create({
+    data: {
+      treinoId,
+      alunoId,
+      dataExecucao: overrides?.dataExecucao ?? new Date(),
+      duracaoSeg: overrides?.duracaoSeg ?? null,
+      concluido: overrides?.concluido ?? true,
+      observacoes: overrides?.observacoes ?? null,
+      itens: {
+        create: (overrides?.itens ?? []).map((item, indice) => ({
+          exercicioId: item.exercicioId ?? null,
+          ordem: item.ordem ?? indice + 1,
+          nome: item.nome,
+          grupoMuscular: item.grupoMuscular ?? "Peito",
+          series: item.series ?? 3,
+          repeticoes: item.repeticoes ?? "10",
+          carga: item.carga ?? null,
+          concluido: item.concluido ?? true,
+        })),
+      },
+    },
+    include: { itens: true },
+  });
+}
