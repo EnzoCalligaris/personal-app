@@ -150,9 +150,9 @@ function Resumo({ data }: { data: DashboardData }) {
         />
       </div>
       <p className="text-xs text-muted-foreground">
-        Alunos ativos = treino ativo ou atividade nos últimos 30 dias · treinos de hoje = programados
-        para {diaSemanaLabel(data.hoje.diaSemana).toLowerCase()} · próximos agendamentos incluem os
-        de hoje que ainda vão acontecer.
+        Alunos ativos = com status ativo · treinos de hoje = programados para{" "}
+        {diaSemanaLabel(data.hoje.diaSemana).toLowerCase()} · próximos agendamentos incluem os de
+        hoje que ainda vão acontecer.
       </p>
     </section>
   );

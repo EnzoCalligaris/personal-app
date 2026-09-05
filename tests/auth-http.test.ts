@@ -53,9 +53,9 @@ describe("Acesso autorizado", () => {
   it("Personal lista somente os alunos vinculados a ele (regra 2)", async () => {
     const { cookie } = await login(personal1.user.email, SENHA);
     const res = await get("/api/personal/alunos", cookie);
-    const body = await res.json();
+    const body = (await res.json()) as { alunos: { id: string }[] };
     expect(res.status).toBe(200);
-    const ids = body.map((a: { id: string }) => a.id).sort();
+    const ids = body.alunos.map((a) => a.id).sort();
     expect(ids).toEqual([aluno1.alunoProfile.id, aluno2.alunoProfile.id].sort());
   });
 

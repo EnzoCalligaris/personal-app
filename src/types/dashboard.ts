@@ -3,10 +3,7 @@ import type { DiaSemana, StatusAgendamento } from "@/types";
 export type DashboardResumo = {
   /** Todos os alunos vinculados ao Personal. */
   totalAlunos: number;
-  /**
-   * Alunos com treino ativo ou com atividade (agendamento/execução) nos
-   * últimos 30 dias.
-   */
+  /** Alunos com status ATIVO (o Personal controla ativando/desativando). */
   alunosAtivos: number;
   /** Treinos ativos programados para o dia da semana de hoje. */
   treinosDoDia: number;

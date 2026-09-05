@@ -130,6 +130,33 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
 
+## Gerenciamento de alunos (Fase 5)
+
+CRUD completo em `/personal/alunos`, com página de detalhe em
+`/personal/alunos/[id]`. Todos os endpoints exigem sessão + role PERSONAL e filtram pelo
+`personalId` do próprio Personal — acessar um aluno de outro profissional responde **404**
+(e não 403), para não revelar que aquele registro existe.
+
+| Endpoint | O que faz |
+| -------- | --------- |
+| `GET /api/personal/alunos` | Lista com busca (`q` por nome/e-mail), filtro (`status`) e ordenação (`ordenar`); devolve também as contagens para os filtros |
+| `POST /api/personal/alunos` | Cria o aluno (conta no Auth + perfil) já vinculado ao Personal |
+| `GET /api/personal/alunos/[id]` | Detalhe com dados cadastrais e métricas |
+| `PATCH /api/personal/alunos/[id]` | Edita dados e ativa/desativa (`status`) |
+| `POST /api/personal/alunos/[id]/avatar` | Envia a foto para o Supabase Storage |
+
+Decisões que valem registrar:
+
+- **Cadastro pelo Personal**: a conta do aluno é criada com uma **senha temporária** gerada pelo
+  sistema, exibida uma única vez para o Personal repassar. Não há envio de e-mail de convite ainda.
+- **E-mail não é editável**: ele identifica a conta no Supabase Auth; alterá-lo exigiria também
+  atualizar o Auth e revalidar o endereço.
+- **Desativar não apaga nada**: `AlunoProfile.status` vira `INATIVO`; treinos, agenda e avaliações
+  continuam disponíveis e o aluno pode ser reativado. Por isso o card "Alunos ativos" do dashboard
+  passou a contar o status persistido (antes era derivado de atividade recente).
+- **Foto**: upload real para o bucket público `avatars` do Supabase Storage (criado sozinho na
+  primeira vez), aceitando JPG/PNG/WebP de até 2 MB.
+
 ## Dashboard do Personal (Fase 4)
 
 `/personal` consome `GET /api/personal/dashboard` (client-side), então os estados de carregamento,
@@ -147,7 +174,7 @@ O endpoint devolve, em uma única chamada:
 | `avaliacoesRecentes` | últimas bioimpedâncias com peso e percentual de gordura |
 
 Definições usadas nas métricas (também exibidas na tela):
-- **Alunos ativos**: têm treino ativo *ou* atividade (agendamento/execução) nos últimos 30 dias.
+- **Alunos ativos**: com `status = ATIVO` (o Personal controla ao desativar/reativar o aluno).
 - **Treinos de hoje**: treinos ativos programados para o dia da semana atual.
 - **Próximos agendamentos**: futuros e não cancelados, incluindo os de hoje que ainda vão acontecer.
 - **Tipo de treino** de um agendamento: derivado do treino ativo daquele aluno para o dia da semana

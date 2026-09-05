@@ -1,44 +1,13 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { DiaSemana } from "@/types";
+import { diaSemanaDe, diasAtras, fimDoDia, inicioDoDia } from "@/lib/date-utils";
 import type {
   DashboardAgendamento,
   DashboardAluno,
   DashboardAvaliacao,
   DashboardData,
 } from "@/types/dashboard";
-
-const DIAS_SEMANA: DiaSemana[] = [
-  "DOMINGO",
-  "SEGUNDA",
-  "TERCA",
-  "QUARTA",
-  "QUINTA",
-  "SEXTA",
-  "SABADO",
-];
-
-export function diaSemanaDe(date: Date): DiaSemana {
-  return DIAS_SEMANA[date.getDay()];
-}
-
-function inicioDoDia(date: Date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function fimDoDia(date: Date) {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-function diasAtras(date: Date, dias: number) {
-  const d = new Date(date);
-  d.setDate(d.getDate() - dias);
-  return d;
-}
 
 /** Status que ainda representam um compromisso de pé. */
 const STATUS_ATIVOS = ["AGENDADO", "REAGENDADO"] as const;
@@ -64,18 +33,18 @@ export async function getDashboardData(
 
   const [
     totalAlunos,
+    alunosAtivos,
     treinosDoDia,
     proximosAgendamentosCount,
     avaliacoesRecentesCount,
-    alunosComTreinoAtivo,
-    alunosComAgendamentoRecente,
-    alunosComExecucaoRecente,
     agendaDoDiaRaw,
     proximosAgendamentosRaw,
     alunosRecentesRaw,
     avaliacoesRecentesRaw,
   ] = await Promise.all([
     prisma.alunoProfile.count({ where: { personalId } }),
+
+    prisma.alunoProfile.count({ where: { personalId, status: "ATIVO" } }),
 
     prisma.treino.count({ where: { personalId, ativo: true, diaSemana: hoje } }),
 
@@ -84,28 +53,6 @@ export async function getDashboardData(
     }),
 
     prisma.avaliacao.count({ where: { personalId, data: { gte: janelaAtividade } } }),
-
-    prisma.treino.findMany({
-      where: { personalId, ativo: true },
-      select: { alunoId: true },
-      distinct: ["alunoId"],
-    }),
-
-    prisma.agendamento.findMany({
-      where: {
-        personalId,
-        data: { gte: janelaAtividade },
-        status: { not: "CANCELADO" },
-      },
-      select: { alunoId: true },
-      distinct: ["alunoId"],
-    }),
-
-    prisma.historicoTreino.findMany({
-      where: { aluno: { personalId }, dataExecucao: { gte: janelaAtividade } },
-      select: { alunoId: true },
-      distinct: ["alunoId"],
-    }),
 
     prisma.agendamento.findMany({
       where: { personalId, data: { gte: inicioHoje, lte: fimHoje } },
@@ -146,12 +93,6 @@ export async function getDashboardData(
       orderBy: { data: "desc" },
       take: LIMITE_AVALIACOES,
     }),
-  ]);
-
-  const idsAtivos = new Set<string>([
-    ...alunosComTreinoAtivo.map((t) => t.alunoId),
-    ...alunosComAgendamentoRecente.map((a) => a.alunoId),
-    ...alunosComExecucaoRecente.map((h) => h.alunoId),
   ]);
 
   // "Tipo de treino" de cada agendamento: o treino ativo programado para o
@@ -195,7 +136,7 @@ export async function getDashboardData(
     email: aluno.user.email,
     objetivo: aluno.objetivo,
     criadoEm: aluno.user.createdAt.toISOString(),
-    ativo: idsAtivos.has(aluno.id),
+    ativo: aluno.status === "ATIVO",
     totalTreinos: aluno.treinos.length,
     proximoTreino:
       aluno.treinos.find((treino) => treino.diaSemana === hoje) ?? aluno.treinos[0] ?? null,
@@ -214,7 +155,7 @@ export async function getDashboardData(
     hoje: { data: agora.toISOString(), diaSemana: hoje },
     resumo: {
       totalAlunos,
-      alunosAtivos: idsAtivos.size,
+      alunosAtivos,
       treinosDoDia,
       proximosAgendamentos: proximosAgendamentosCount,
       avaliacoesRecentes: avaliacoesRecentesCount,

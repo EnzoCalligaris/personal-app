@@ -24,6 +24,11 @@ enum DiaSemana {
   SABADO
 }
 
+enum StatusAluno {
+  ATIVO
+  INATIVO
+}
+
 enum StatusAgendamento {
   AGENDADO
   CANCELADO
@@ -91,6 +96,12 @@ model AlunoProfile {
   dataNascimento DateTime?
   altura         Float? // cm
   objetivo       String?
+  observacoes    String?
+  // Controlado pelo Personal (desativar/reativar). Aluno inativo mantém todo
+  // o histórico - nada é apagado.
+  status         StatusAluno @default(ATIVO)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   treinos      Treino[]
   historico    HistoricoTreino[]
@@ -99,6 +110,7 @@ model AlunoProfile {
   feedbacks    Feedback[]
 
   @@index([personalId])
+  @@index([personalId, status])
   @@map("aluno_profiles")
 }
 

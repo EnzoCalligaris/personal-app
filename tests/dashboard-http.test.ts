@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { diaSemanaDe } from "@/lib/dashboard/queries";
+import { diaSemanaDe } from "@/lib/date-utils";
 import type { DashboardData } from "@/types/dashboard";
 import { resetDb } from "./db";
 import {
@@ -19,6 +19,21 @@ function emDias(dias: number, hora = 12) {
   d.setDate(d.getDate() + dias);
   d.setHours(hora, 0, 0, 0);
   return d;
+}
+
+/**
+ * Um instante de hoje que já passou - independente da hora em que a suíte
+ * roda. Usar uma hora fixa (ex.: 08:00) tornaria o teste dependente do
+ * relógio: de madrugada, esse horário ainda estaria no futuro e entraria na
+ * contagem de "próximos agendamentos".
+ */
+function hojeJaPassado() {
+  const agora = new Date();
+  const inicioDoDia = new Date(agora);
+  inicioDoDia.setHours(0, 0, 0, 0);
+  const duasHorasAtras = agora.getTime() - 2 * 60 * 60 * 1000;
+  const instante = Math.max(inicioDoDia.getTime(), duasHorasAtras);
+  return new Date(instante < agora.getTime() ? instante : agora.getTime() - 1);
 }
 
 const hoje = diaSemanaDe(new Date());
@@ -68,7 +83,7 @@ beforeAll(async () => {
   await createHistorico(treinoDeHoje.id, ana.alunoProfile.id, { dataExecucao: emDias(-2) });
 
   await createAgendamento(personal.personalProfile.id, ana.alunoProfile.id, {
-    data: emDias(0, 8),
+    data: hojeJaPassado(),
     horaInicio: "08:00",
     horaFim: "09:00",
   });
@@ -129,7 +144,7 @@ describe("GET /api/personal/dashboard - resumo", () => {
 
     expect(res.status).toBe(200);
     expect(data.resumo.totalAlunos).toBe(2);
-    // Ana (treino ativo + execução) e Bruno (agendamento recente).
+    // Alunos ativos = status ATIVO (padrão ao criar).
     expect(data.resumo.alunosAtivos).toBe(2);
     // Só o treino ativo de hoje conta (o arquivado não).
     expect(data.resumo.treinosDoDia).toBe(1);

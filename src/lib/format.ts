@@ -43,6 +43,11 @@ export function formatarDataRelativa(iso: string, referencia = new Date()) {
   return formatarData(iso);
 }
 
+/** 62.4 -> "62,4 kg" */
+export function formatarPeso(peso: number) {
+  return `${peso.toLocaleString("pt-BR")} kg`;
+}
+
 export function iniciais(nome: string) {
   return nome
     .split(" ")

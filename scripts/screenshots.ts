@@ -31,6 +31,15 @@ const PERSONAL_PAGES = [
   { name: "personal-alunos", path: "/personal/alunos" },
 ];
 
+/** Detalhe do primeiro aluno da lista (o id varia a cada seed). */
+async function capturarDetalheDoAluno(page: Page, prefix: (name: string) => string) {
+  const res = await page.request.get(`${BASE_URL}/api/personal/alunos`);
+  if (!res.ok()) return;
+  const { alunos } = (await res.json()) as { alunos: { id: string }[] };
+  if (!alunos.length) return;
+  await shot(page, `${BASE_URL}/personal/alunos/${alunos[0].id}`, prefix("personal-aluno-detalhe"));
+}
+
 const ALUNO_PAGES = [{ name: "aluno-home", path: "/aluno" }];
 
 async function shot(page: Page, url: string, file: string) {
@@ -99,6 +108,7 @@ async function run() {
         for (const target of PERSONAL_PAGES) {
           await shot(page, `${BASE_URL}${target.path}`, prefix(target.name));
         }
+        await capturarDetalheDoAluno(page, prefix);
 
         // Personal sem dados: mostra os estados vazios do dashboard.
         await page.request.post(`${BASE_URL}/api/auth/logout`);
