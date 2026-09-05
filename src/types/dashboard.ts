@@ -36,7 +36,8 @@ export type DashboardAluno = {
   criadoEm: string;
   ativo: boolean;
   totalTreinos: number;
-  proximoTreino: { id: string; nome: string; diaSemana: DiaSemana } | null;
+  /** Próximo treino previsto pela programação, com a data. */
+  proximoTreino: { id: string; nome: string; diaSemana: DiaSemana; data: string } | null;
   ultimaExecucao: string | null;
 };
 

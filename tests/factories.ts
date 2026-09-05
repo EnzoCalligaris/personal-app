@@ -72,16 +72,39 @@ export async function createExercicio(personalId: string, overrides?: { nome?: s
 export async function createTreino(
   personalId: string,
   alunoId: string,
-  overrides?: { nome?: string; diaSemana?: DiaSemana; ativo?: boolean }
+  overrides?: { nome?: string; ativo?: boolean }
 ) {
   return prisma.treino.create({
     data: {
       personalId,
       alunoId,
       nome: overrides?.nome ?? "Treino de teste",
-      diaSemana: overrides?.diaSemana ?? "SEGUNDA",
       ativo: overrides?.ativo ?? true,
     },
+  });
+}
+
+/** Programação com os dias já montados. */
+export async function createProgramacao(
+  personalId: string,
+  alunoId: string,
+  overrides?: {
+    nome?: string;
+    dataInicio?: Date;
+    dataFim?: Date | null;
+    dias?: { diaSemana: DiaSemana; treinoId: string }[];
+  }
+) {
+  return prisma.programacao.create({
+    data: {
+      personalId,
+      alunoId,
+      nome: overrides?.nome ?? "Programação de teste",
+      dataInicio: overrides?.dataInicio ?? new Date(),
+      dataFim: overrides?.dataFim ?? null,
+      dias: { create: overrides?.dias ?? [] },
+    },
+    include: { dias: true },
   });
 }
 

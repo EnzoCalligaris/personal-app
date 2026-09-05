@@ -76,7 +76,7 @@ describe("Treinos - criar e vincular ao aluno", () => {
       `${BASE_URL}/api/personal/treinos`,
       comCookie(cookiePersonal, {
         method: "POST",
-        body: JSON.stringify({ alunoId: "nao-e-uuid", nome: "A", diaSemana: "FERIADO" }),
+        body: JSON.stringify({ alunoId: "nao-e-uuid", nome: "A" }),
       })
     );
     const body = await res.json();
@@ -84,7 +84,6 @@ describe("Treinos - criar e vincular ao aluno", () => {
     expect(res.status).toBe(400);
     expect(body.issues.alunoId).toBeTruthy();
     expect(body.issues.nome).toBeTruthy();
-    expect(body.issues.diaSemana).toBeTruthy();
   });
 
   it("cria o treino vinculado ao aluno", async () => {
@@ -95,7 +94,6 @@ describe("Treinos - criar e vincular ao aluno", () => {
         body: JSON.stringify({
           alunoId: ana.alunoProfile.id,
           nome: "Treino A · Superior",
-          diaSemana: "SEGUNDA",
           observacoes: "Aquecer 5 min antes.",
         }),
       })
@@ -105,7 +103,8 @@ describe("Treinos - criar e vincular ao aluno", () => {
     expect(res.status).toBe(201);
     expect(treino.aluno.id).toBe(ana.alunoProfile.id);
     expect(treino.aluno.nome).toBe("Ana Treino");
-    expect(treino.diaSemana).toBe("SEGUNDA");
+    // O dia vem da programação, não do treino.
+    expect(treino.diasProgramados).toEqual([]);
     expect(treino.exercicios).toEqual([]);
 
     treinoId = treino.id;
@@ -119,7 +118,6 @@ describe("Treinos - criar e vincular ao aluno", () => {
         body: JSON.stringify({
           alunoId: alunoDoOutro.alunoProfile.id,
           nome: "Treino invasor",
-          diaSemana: "TERCA",
         }),
       })
     );
@@ -330,16 +328,11 @@ describe("Treinos - listar e filtrar", () => {
     expect(doOutro.treinos).toHaveLength(0);
   });
 
-  it("filtra por aluno e por dia da semana", async () => {
+  it("filtra por aluno", async () => {
     const doBruno = (await (
       await get(`/api/personal/treinos?alunoId=${bruno.alunoProfile.id}&status=TODOS`, cookiePersonal)
     ).json()) as TreinoListResponse;
     expect(doBruno.treinos.map((treino) => treino.nome)).toEqual(["Treino do Bruno"]);
-
-    const naTerca = (await (
-      await get("/api/personal/treinos?diaSemana=TERCA&status=TODOS", cookiePersonal)
-    ).json()) as TreinoListResponse;
-    expect(naTerca.treinos).toHaveLength(0);
   });
 
   it("busca por nome do treino e por nome do aluno", async () => {

@@ -4,7 +4,7 @@ import { requirePersonal } from "@/lib/auth/guards";
 import { AlunoNaoEncontradoError, criarTreino, listarTreinos } from "@/lib/treinos/queries";
 import { criarTreinoSchema, listarTreinosQuerySchema } from "@/lib/validations/treino";
 
-/** Treinos do Personal autenticado, com filtros por aluno, dia e status. */
+/** Treinos do Personal autenticado, com filtros por aluno, status e busca. */
 export async function GET(request: NextRequest) {
   const auth = await requirePersonal();
   if (!auth.ok) return auth.response;
@@ -12,7 +12,6 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const parsed = listarTreinosQuerySchema.safeParse({
     alunoId: params.get("alunoId") ?? undefined,
-    diaSemana: params.get("diaSemana") ?? undefined,
     status: params.get("status") ?? undefined,
     q: params.get("q") ?? undefined,
   });

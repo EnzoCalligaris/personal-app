@@ -4,7 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { diaSemanaDe } from "@/lib/date-utils";
 import type { AlunoDetalhe, AlunoListResponse } from "@/types/aluno";
 import { resetDb } from "./db";
-import { createAluno, createAvaliacao, createPersonal, createTreino } from "./factories";
+import {
+  createAluno,
+  createAvaliacao,
+  createPersonal,
+  createProgramacao,
+  createTreino,
+} from "./factories";
 import { BASE_URL, get, login, SENHA } from "./http";
 
 function comCookie(cookie: string, init?: RequestInit): RequestInit {
@@ -155,9 +161,12 @@ describe("Alunos - listar, buscar e filtrar", () => {
 
   it("traz próximo treino e última avaliação na listagem", async () => {
     const hoje = diaSemanaDe(new Date());
-    await createTreino(personal.personalProfile.id, alunoCriadoId, {
+    const treino = await createTreino(personal.personalProfile.id, alunoCriadoId, {
       nome: "Treino A · Superior",
-      diaSemana: hoje,
+    });
+    // O "próximo treino" vem da programação do aluno.
+    await createProgramacao(personal.personalProfile.id, alunoCriadoId, {
+      dias: [{ diaSemana: hoje, treinoId: treino.id }],
     });
     await createAvaliacao(personal.personalProfile.id, alunoCriadoId, { peso: 64.5 });
 

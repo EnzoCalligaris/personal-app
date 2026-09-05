@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { useApi } from "@/hooks/use-api";
-import { diaSemanaLabel, formatarData, formatarDataRelativa } from "@/lib/format";
+import { diasProgramadosLabel, formatarData, formatarDataRelativa } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import type { TreinoDetalhe, TreinoItemExercicio } from "@/types/treino";
 import { Badge } from "@/components/ui/badge";
@@ -190,7 +190,7 @@ export function TreinoEditor({ treinoId }: { treinoId: string }) {
               <Badge variant={inativo ? "secondary" : "success"}>
                 {inativo ? "Inativo" : "Ativo"}
               </Badge>
-              <Badge variant="outline">{diaSemanaLabel(atual.diaSemana)}</Badge>
+              <Badge variant="outline">{diasProgramadosLabel(atual.diasProgramados)}</Badge>
             </div>
 
             <p className="text-sm text-muted-foreground">

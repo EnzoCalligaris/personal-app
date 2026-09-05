@@ -14,6 +14,11 @@ export function diaSemanaLabel(dia: DiaSemana) {
   return DIA_SEMANA_LABEL[dia];
 }
 
+/** ["SEGUNDA","QUINTA"] -> "Segunda, Quinta"; vazio -> "Sem dia definido". */
+export function diasProgramadosLabel(dias: DiaSemana[]) {
+  return dias.length ? dias.map(diaSemanaLabel).join(", ") : "Sem dia na programação";
+}
+
 export function formatarData(iso: string) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(
     new Date(iso)

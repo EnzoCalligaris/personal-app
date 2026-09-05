@@ -82,6 +82,7 @@ model PersonalProfile {
   agendamentos     Agendamento[]
   avaliacoes       Avaliacao[]
   feedbacks        Feedback[]
+  programacoes     Programacao[]
 
   @@map("personal_profiles")
 }
@@ -108,6 +109,7 @@ model AlunoProfile {
   agendamentos Agendamento[]
   avaliacoes   Avaliacao[]
   feedbacks    Feedback[]
+  programacoes Programacao[]
 
   @@index([personalId])
   @@index([personalId, status])
@@ -144,7 +146,6 @@ model Treino {
   alunoId     String
   aluno       AlunoProfile    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   nome        String
-  diaSemana   DiaSemana
   observacoes String?
   ativo       Boolean         @default(true)
   createdAt   DateTime        @default(now())
@@ -152,10 +153,52 @@ model Treino {
 
   exercicios TreinoExercicio[]
   historico  HistoricoTreino[]
+  // Em quais dias este treino é prescrito (a programação é quem define isso;
+  // o mesmo treino pode aparecer em vários dias).
+  diasProgramados ProgramacaoDia[]
 
   @@index([personalId])
-  @@index([alunoId, diaSemana])
+  @@index([alunoId])
   @@map("treinos")
+}
+
+/// Período em que uma rotina semanal vale para o aluno. Trocar a rotina é
+/// criar uma nova programação - o histórico das anteriores fica preservado.
+model Programacao {
+  id          String          @id @default(uuid())
+  personalId  String
+  personal    PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  alunoId     String
+  aluno       AlunoProfile    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  nome        String?
+  /// Datas puras (sem hora): o que vale é o dia do calendário.
+  dataInicio  DateTime        @db.Date
+  /// Nulo = vigente por tempo indeterminado.
+  dataFim     DateTime?       @db.Date
+  observacoes String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  dias ProgramacaoDia[]
+
+  @@index([personalId])
+  @@index([alunoId, dataInicio])
+  @@map("programacoes")
+}
+
+/// Um dia da semana dentro de uma programação. A ausência de linha para um
+/// dia significa descanso.
+model ProgramacaoDia {
+  id            String      @id @default(uuid())
+  programacaoId String
+  programacao   Programacao @relation(fields: [programacaoId], references: [id], onDelete: Cascade)
+  diaSemana     DiaSemana
+  treinoId      String
+  treino        Treino      @relation(fields: [treinoId], references: [id], onDelete: Cascade)
+
+  @@unique([programacaoId, diaSemana])
+  @@index([treinoId])
+  @@map("programacao_dias")
 }
 
 model TreinoExercicio {

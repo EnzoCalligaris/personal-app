@@ -6,6 +6,8 @@ export type AlunoTreinoResumo = {
   id: string;
   nome: string;
   diaSemana: DiaSemana;
+  /** Data em que esse treino cai (resolvida pela programação). */
+  data: string;
 };
 
 export type AlunoAvaliacaoResumo = {

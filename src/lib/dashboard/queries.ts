@@ -1,7 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { DiaSemana } from "@/types";
-import { diaSemanaDe, diasAtras, fimDoDia, inicioDoDia } from "@/lib/date-utils";
+import { diaSemanaDe, diasAtras, fimDoDia, hojeUTC, inicioDoDia, paraISO } from "@/lib/date-utils";
+import {
+  proximosTreinosDeAlunos,
+  treinosPrevistosHoje,
+  treinosPrevistosPara,
+} from "@/lib/programacoes/queries";
 import type {
   DashboardAgendamento,
   DashboardAluno,
@@ -17,6 +21,13 @@ const LIMITE_AGENDA = 8;
 const LIMITE_ALUNOS = 5;
 const LIMITE_AVALIACOES = 5;
 
+/** O agendamento guarda um instante; a programação raciocina em datas. */
+function dataDoAgendamento(instante: Date) {
+  return new Date(
+    Date.UTC(instante.getFullYear(), instante.getMonth(), instante.getDate())
+  );
+}
+
 /**
  * Monta o dashboard do Personal a partir do banco. Tudo é filtrado pelo
  * `personalId` do próprio Personal autenticado - nenhum dado de outro
@@ -27,6 +38,7 @@ export async function getDashboardData(
   agora: Date = new Date()
 ): Promise<DashboardData> {
   const hoje = diaSemanaDe(agora);
+  const hojeData = hojeUTC();
   const inicioHoje = inicioDoDia(agora);
   const fimHoje = fimDoDia(agora);
   const janelaAtividade = diasAtras(agora, JANELA_ATIVIDADE_DIAS);
@@ -46,7 +58,7 @@ export async function getDashboardData(
 
     prisma.alunoProfile.count({ where: { personalId, status: "ATIVO" } }),
 
-    prisma.treino.count({ where: { personalId, ativo: true, diaSemana: hoje } }),
+    treinosPrevistosHoje(personalId, hojeData),
 
     prisma.agendamento.count({
       where: { personalId, data: { gte: agora }, status: { in: [...STATUS_ATIVOS] } },
@@ -72,16 +84,12 @@ export async function getDashboardData(
       where: { personalId },
       include: {
         user: { select: { name: true, email: true, createdAt: true } },
-        treinos: {
-          where: { ativo: true },
-          select: { id: true, nome: true, diaSemana: true },
-          orderBy: { createdAt: "desc" },
-        },
         historico: {
           select: { dataExecucao: true },
           orderBy: { dataExecucao: "desc" },
           take: 1,
         },
+        _count: { select: { treinos: true } },
       },
       orderBy: { user: { createdAt: "desc" } },
       take: LIMITE_ALUNOS,
@@ -95,53 +103,67 @@ export async function getDashboardData(
     }),
   ]);
 
-  // "Tipo de treino" de cada agendamento: o treino ativo programado para o
-  // dia da semana daquela data (o schema não liga agendamento a treino).
-  const alunoIdsNaAgenda = [
-    ...new Set([...agendaDoDiaRaw, ...proximosAgendamentosRaw].map((a) => a.alunoId)),
-  ];
-
-  const treinosDosAlunosNaAgenda = alunoIdsNaAgenda.length
-    ? await prisma.treino.findMany({
-        where: { personalId, ativo: true, alunoId: { in: alunoIdsNaAgenda } },
-        select: { id: true, nome: true, diaSemana: true, alunoId: true },
-      })
-    : [];
-
-  const treinoPorAlunoEDia = new Map<string, { id: string; nome: string; diaSemana: DiaSemana }>();
-  for (const treino of treinosDosAlunosNaAgenda) {
-    treinoPorAlunoEDia.set(`${treino.alunoId}:${treino.diaSemana}`, {
-      id: treino.id,
-      nome: treino.nome,
-      diaSemana: treino.diaSemana,
-    });
-  }
+  // O "tipo de treino" de cada agendamento é o que a programação do aluno
+  // prevê para aquela data.
+  const agendamentos = [...agendaDoDiaRaw, ...proximosAgendamentosRaw];
+  const previstosNaAgenda = await treinosPrevistosPara(
+    agendamentos.map((item) => ({
+      alunoId: item.alunoId,
+      data: dataDoAgendamento(item.data),
+    }))
+  );
 
   type AgendamentoRaw = (typeof agendaDoDiaRaw)[number];
 
-  const mapAgendamento = (item: AgendamentoRaw): DashboardAgendamento => ({
-    id: item.id,
-    data: item.data.toISOString(),
-    horaInicio: item.horaInicio,
-    horaFim: item.horaFim,
-    status: item.status,
-    observacoes: item.observacoes,
-    aluno: { id: item.alunoId, nome: item.aluno.user.name },
-    treino: treinoPorAlunoEDia.get(`${item.alunoId}:${diaSemanaDe(item.data)}`) ?? null,
-  });
+  const mapAgendamento = (item: AgendamentoRaw): DashboardAgendamento => {
+    const previsto = previstosNaAgenda.get(
+      `${item.alunoId}:${paraISO(dataDoAgendamento(item.data))}`
+    );
 
-  const alunosRecentes: DashboardAluno[] = alunosRecentesRaw.map((aluno) => ({
-    id: aluno.id,
-    nome: aluno.user.name,
-    email: aluno.user.email,
-    objetivo: aluno.objetivo,
-    criadoEm: aluno.user.createdAt.toISOString(),
-    ativo: aluno.status === "ATIVO",
-    totalTreinos: aluno.treinos.length,
-    proximoTreino:
-      aluno.treinos.find((treino) => treino.diaSemana === hoje) ?? aluno.treinos[0] ?? null,
-    ultimaExecucao: aluno.historico[0]?.dataExecucao.toISOString() ?? null,
-  }));
+    return {
+      id: item.id,
+      data: item.data.toISOString(),
+      horaInicio: item.horaInicio,
+      horaFim: item.horaFim,
+      status: item.status,
+      observacoes: item.observacoes,
+      aluno: { id: item.alunoId, nome: item.aluno.user.name },
+      treino:
+        previsto?.tipo === "TREINO" && previsto.treino
+          ? { id: previsto.treino.id, nome: previsto.treino.nome, diaSemana: previsto.diaSemana }
+          : null,
+    };
+  };
+
+  // Próximo treino de cada aluno da lista, resolvido pela programação.
+  const proximosPorAluno = await proximosTreinosDeAlunos(
+    alunosRecentesRaw.map((aluno) => aluno.id),
+    hojeData
+  );
+
+  const alunosRecentes: DashboardAluno[] = alunosRecentesRaw.map((aluno) => {
+    const proximo = proximosPorAluno.get(aluno.id);
+
+    return {
+      id: aluno.id,
+      nome: aluno.user.name,
+      email: aluno.user.email,
+      objetivo: aluno.objetivo,
+      criadoEm: aluno.user.createdAt.toISOString(),
+      ativo: aluno.status === "ATIVO",
+      totalTreinos: aluno._count.treinos,
+      proximoTreino:
+        proximo?.treino
+          ? {
+              id: proximo.treino.id,
+              nome: proximo.treino.nome,
+              diaSemana: proximo.diaSemana,
+              data: proximo.data,
+            }
+          : null,
+      ultimaExecucao: aluno.historico[0]?.dataExecucao.toISOString() ?? null,
+    };
+  });
 
   const avaliacoesRecentes: DashboardAvaliacao[] = avaliacoesRecentesRaw.map((avaliacao) => ({
     id: avaliacao.id,

@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { diaSemanaDe } from "@/lib/date-utils";
+import { proximosTreinosDeAlunos } from "@/lib/programacoes/queries";
 import type { CriarAlunoInput, EditarAlunoInput, ListarAlunosQuery } from "@/lib/validations/aluno";
 import type {
   AlunoDetalhe,
@@ -17,7 +17,7 @@ type AlunoComRelacoes = {
   status: "ATIVO" | "INATIVO";
   createdAt: Date;
   user: { name: string; email: string; phone: string | null; avatarUrl: string | null };
-  treinos: { id: string; nome: string; diaSemana: ReturnType<typeof diaSemanaDe> }[];
+  treinos: { id: string; nome: string }[];
   avaliacoes: { id: string; data: Date; peso: number | null; percentualGordura: number | null }[];
 };
 
@@ -26,7 +26,7 @@ const includeResumo = {
   user: { select: { name: true, email: true, phone: true, avatarUrl: true } },
   treinos: {
     where: { ativo: true },
-    select: { id: true, nome: true, diaSemana: true },
+    select: { id: true, nome: true },
     orderBy: { createdAt: "desc" },
   },
   avaliacoes: {
@@ -36,7 +36,7 @@ const includeResumo = {
   },
 } as const;
 
-function toListItem(aluno: AlunoComRelacoes, hoje = diaSemanaDe(new Date())): AlunoListItem {
+function toListItem(aluno: AlunoComRelacoes): AlunoListItem {
   const ultima = aluno.avaliacoes[0];
 
   return {
@@ -47,9 +47,8 @@ function toListItem(aluno: AlunoComRelacoes, hoje = diaSemanaDe(new Date())): Al
     avatarUrl: aluno.user.avatarUrl,
     status: aluno.status,
     criadoEm: aluno.createdAt.toISOString(),
-    // Treino do dia, se houver; senão o mais recente cadastrado.
-    proximoTreino:
-      aluno.treinos.find((treino) => treino.diaSemana === hoje) ?? aluno.treinos[0] ?? null,
+    // Preenchido depois, pela programação (ver `comProximosTreinos`).
+    proximoTreino: null,
     ultimaAvaliacao: ultima
       ? {
           id: ultima.id,
@@ -95,13 +94,34 @@ export async function listarAlunos(
     prisma.alunoProfile.count({ where: { personalId, status: "ATIVO" } }),
   ]);
 
-  const hoje = diaSemanaDe(new Date());
-
   return {
-    alunos: alunos.map((aluno) => toListItem(aluno, hoje)),
+    alunos: await comProximosTreinos(alunos.map(toListItem)),
     total,
     contagens: { todos, ativos, inativos: todos - ativos },
   };
+}
+
+/**
+ * Preenche o "próximo treino" de cada aluno resolvendo a programação dele -
+ * em uma consulta só para toda a lista.
+ */
+async function comProximosTreinos<T extends AlunoListItem>(alunos: T[]): Promise<T[]> {
+  const previstos = await proximosTreinosDeAlunos(alunos.map((aluno) => aluno.id));
+
+  return alunos.map((aluno) => {
+    const previsto = previstos.get(aluno.id);
+    if (!previsto?.treino) return aluno;
+
+    return {
+      ...aluno,
+      proximoTreino: {
+        id: previsto.treino.id,
+        nome: previsto.treino.nome,
+        diaSemana: previsto.diaSemana,
+        data: previsto.data,
+      },
+    };
+  });
 }
 
 /**
@@ -130,8 +150,10 @@ export async function obterAluno(
 
   if (!aluno) return null;
 
+  const [comProximo] = await comProximosTreinos([toListItem(aluno)]);
+
   return {
-    ...toListItem(aluno),
+    ...comProximo,
     dataNascimento: aluno.dataNascimento?.toISOString() ?? null,
     altura: aluno.altura,
     objetivo: aluno.objetivo,

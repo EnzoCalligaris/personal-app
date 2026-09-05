@@ -7,9 +7,7 @@ import { ArrowRightIcon, DumbbellIcon, PlusIcon, SearchIcon, XIcon } from "lucid
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { diaSemanaLabel, formatarDataRelativa, iniciais } from "@/lib/format";
-import { DIAS_SEMANA_VALORES } from "@/lib/validations/treino";
-import type { DiaSemana } from "@/types";
+import { diasProgramadosLabel, formatarDataRelativa, iniciais } from "@/lib/format";
 import type { TreinoListItem, TreinoListResponse } from "@/types/treino";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,25 +18,16 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { SkeletonList } from "@/components/ui/loading";
 import { PageHeader } from "@/components/ui/page-header";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TreinoFormModal } from "@/components/personal/treinos/treino-form-modal";
 
 type StatusFiltro = "ATIVOS" | "INATIVOS" | "TODOS";
-const TODOS_OS_DIAS = "__todos__";
 
 export function TreinosLista() {
   const router = useRouter();
   const [busca, setBusca] = React.useState("");
   const [buscaAplicada, setBuscaAplicada] = React.useState("");
   const [status, setStatus] = React.useState<StatusFiltro>("ATIVOS");
-  const [dia, setDia] = React.useState<string>(TODOS_OS_DIAS);
   const [criando, setCriando] = React.useState(false);
 
   React.useEffect(() => {
@@ -49,9 +38,8 @@ export function TreinosLista() {
   const url = React.useMemo(() => {
     const params = new URLSearchParams({ status });
     if (buscaAplicada) params.set("q", buscaAplicada);
-    if (dia !== TODOS_OS_DIAS) params.set("diaSemana", dia);
     return `/api/personal/treinos?${params.toString()}`;
-  }, [buscaAplicada, status, dia]);
+  }, [buscaAplicada, status]);
 
   const { data, loading, error, refetch } = useApi<TreinoListResponse>(url);
   const buscando = busca !== buscaAplicada;
@@ -62,7 +50,7 @@ export function TreinosLista() {
       <PageHeader
         eyebrow="Programação"
         title="Treinos"
-        description="Monte as fichas dos seus alunos, organizadas por dia da semana."
+        description="Monte as fichas dos seus alunos. Os dias de cada ficha são definidos na programação do aluno."
         actions={
           <Button onClick={() => setCriando(true)}>
             <PlusIcon />
@@ -94,26 +82,6 @@ export function TreinosLista() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={dia} onValueChange={(valor) => setDia(valor ?? TODOS_OS_DIAS)}>
-            <SelectTrigger size="sm" aria-label="Filtrar por dia" className="w-[170px]">
-              <SelectValue>
-                {(valor) =>
-                  valor === TODOS_OS_DIAS
-                    ? "Todos os dias"
-                    : diaSemanaLabel(valor as DiaSemana)
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS_OS_DIAS}>Todos os dias</SelectItem>
-              {DIAS_SEMANA_VALORES.map((valor) => (
-                <SelectItem key={valor} value={valor}>
-                  {diaSemanaLabel(valor)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Tabs value={status} onValueChange={(valor) => setStatus(valor as StatusFiltro)}>
             <TabsList>
               <TabsTrigger value="ATIVOS">
@@ -141,7 +109,7 @@ export function TreinosLista() {
 
       {data && !loading && !buscando ? (
         data.treinos.length === 0 ? (
-          buscaAplicada || dia !== TODOS_OS_DIAS || status !== "ATIVOS" ? (
+          buscaAplicada || status !== "ATIVOS" ? (
             <EmptyState
               icon={SearchIcon}
               title="Nenhum treino encontrado"
@@ -151,7 +119,6 @@ export function TreinosLista() {
                   variant="outline"
                   onClick={() => {
                     setBusca("");
-                    setDia(TODOS_OS_DIAS);
                     setStatus("ATIVOS");
                   }}
                 >
@@ -214,7 +181,7 @@ function LinhaTreino({ treino }: { treino: TreinoListItem }) {
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <div className="flex flex-wrap items-center gap-2">
               <span className="truncate font-medium">{treino.nome}</span>
-              <Badge variant="outline">{diaSemanaLabel(treino.diaSemana)}</Badge>
+              <Badge variant="outline">{diasProgramadosLabel(treino.diasProgramados)}</Badge>
               {!treino.ativo ? <Badge variant="secondary">Inativo</Badge> : null}
             </div>
             <span className="truncate text-xs text-muted-foreground">{treino.aluno.nome}</span>

@@ -21,7 +21,8 @@ export type TreinoItemExercicio = {
 export type TreinoListItem = {
   id: string;
   nome: string;
-  diaSemana: DiaSemana;
+  /** Dias em que o treino é prescrito na programação vigente do aluno. */
+  diasProgramados: DiaSemana[];
   observacoes: string | null;
   ativo: boolean;
   criadoEm: string;

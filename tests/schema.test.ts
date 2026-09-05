@@ -50,7 +50,7 @@ describe("Personal Trainer e Aluno", () => {
 });
 
 describe("Exercícios e Treinos", () => {
-  it("cria um treino com exercícios organizados por dia da semana", async () => {
+  it("cria um treino com os exercícios na ordem definida", async () => {
     const { personalProfile } = await createPersonal();
     const { alunoProfile } = await createAluno({ personalId: personalProfile.id });
     const supino = await createExercicio(personalProfile.id, { nome: "Supino reto" });
@@ -61,7 +61,6 @@ describe("Exercícios e Treinos", () => {
         personalId: personalProfile.id,
         alunoId: alunoProfile.id,
         nome: "Treino A - Superior",
-        diaSemana: "SEGUNDA",
         exercicios: {
           create: [
             { exercicioId: supino.id, ordem: 1, series: 4, repeticoes: "8-10", carga: "40kg" },
@@ -72,7 +71,6 @@ describe("Exercícios e Treinos", () => {
       include: { exercicios: { orderBy: { ordem: "asc" }, include: { exercicio: true } } },
     });
 
-    expect(treino.diaSemana).toBe("SEGUNDA");
     expect(treino.exercicios).toHaveLength(2);
     expect(treino.exercicios[0].exercicio.nome).toBe("Supino reto");
     expect(treino.exercicios[1].ordem).toBe(2);
@@ -88,7 +86,6 @@ describe("Exercícios e Treinos", () => {
         personalId: personalProfile.id,
         alunoId: alunoProfile.id,
         nome: "Treino B",
-        diaSemana: "QUARTA",
       },
     });
 
@@ -111,7 +108,6 @@ describe("Exercícios e Treinos", () => {
         personalId: personalProfile.id,
         alunoId: alunoProfile.id,
         nome: "Treino C",
-        diaSemana: "SEXTA",
       },
     });
 
@@ -250,7 +246,6 @@ describe("Integridade referencial", () => {
         personalId: personalProfile.id,
         alunoId: alunoProfile.id,
         nome: "Treino D",
-        diaSemana: "SABADO",
       },
     });
 

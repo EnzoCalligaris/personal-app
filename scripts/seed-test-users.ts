@@ -166,9 +166,6 @@ async function seedDadosDemo() {
   const bruno = personal.alunos.find((a) => a.user.email === "aluno2@teste.com");
   if (!ana || !bruno) return;
 
-  const hoje = DIAS_SEMANA[new Date().getDay()];
-  const amanha = DIAS_SEMANA[emDias(1).getDay()];
-
   const exercicios = await Promise.all(
     [
       { nome: "Supino reto", grupoMuscular: "Peito" },
@@ -178,13 +175,12 @@ async function seedDadosDemo() {
     ].map((exercicio) => prisma.exercicio.create({ data: { ...exercicio, personalId: personal.id } }))
   );
 
-  // Treinos: um para hoje (aparece em "treinos de hoje") e um para amanhã.
-  await prisma.treino.create({
+  // Treinos: as fichas em si. Os dias vêm da programação, logo abaixo.
+  const treinoA = await prisma.treino.create({
     data: {
       personalId: personal.id,
       alunoId: ana.id,
       nome: "Treino A · Superior",
-      diaSemana: hoje,
       exercicios: {
         create: [
           { exercicioId: exercicios[0].id, ordem: 1, series: 4, repeticoes: "8-10", carga: "40kg" },
@@ -195,12 +191,11 @@ async function seedDadosDemo() {
     },
   });
 
-  await prisma.treino.create({
+  const treinoB = await prisma.treino.create({
     data: {
       personalId: personal.id,
       alunoId: ana.id,
       nome: "Treino B · Inferior",
-      diaSemana: amanha,
       exercicios: {
         create: [
           { exercicioId: exercicios[1].id, ordem: 1, series: 4, repeticoes: "10", carga: "60kg" },
@@ -214,13 +209,51 @@ async function seedDadosDemo() {
       personalId: personal.id,
       alunoId: bruno.id,
       nome: "Full body",
-      diaSemana: hoje,
       exercicios: {
         create: [
           { exercicioId: exercicios[1].id, ordem: 1, series: 3, repeticoes: "12", carga: "50kg" },
           { exercicioId: exercicios[0].id, ordem: 2, series: 3, repeticoes: "10", carga: "45kg" },
         ],
       },
+    },
+  });
+
+  // Programação: exatamente o exemplo do enunciado - Treino A na segunda e na
+  // quinta, Treino B na terça e na sexta, quarta e fim de semana em descanso.
+  const inicio = new Date();
+  await prisma.programacao.create({
+    data: {
+      personalId: personal.id,
+      alunoId: ana.id,
+      nome: "Bloco de hipertrofia",
+      dataInicio: new Date(
+        Date.UTC(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() - 7)
+      ),
+      dias: {
+        create: [
+          { diaSemana: "SEGUNDA", treinoId: treinoA.id },
+          { diaSemana: "TERCA", treinoId: treinoB.id },
+          { diaSemana: "QUINTA", treinoId: treinoA.id },
+          { diaSemana: "SEXTA", treinoId: treinoB.id },
+        ],
+      },
+    },
+  });
+
+  // O Bruno treina em dias alternados, incluindo hoje - assim o dashboard e o
+  // "treino de hoje" têm conteúdo em qualquer dia da semana.
+  const diaDeHoje = DIAS_SEMANA[new Date().getDay()];
+  const diasDoBruno = [...new Set([diaDeHoje, "QUARTA" as const, "SABADO" as const])];
+
+  await prisma.programacao.create({
+    data: {
+      personalId: personal.id,
+      alunoId: bruno.id,
+      nome: "Full body 3x por semana",
+      dataInicio: new Date(
+        Date.UTC(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() - 3)
+      ),
+      dias: { create: diasDoBruno.map((dia) => ({ diaSemana: dia, treinoId: treinoBruno.id })) },
     },
   });
 

@@ -6,10 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { useApi } from "@/hooks/use-api";
-import { diaSemanaLabel } from "@/lib/format";
 import { toast } from "@/lib/toast";
-import { DIAS_SEMANA_VALORES } from "@/lib/validations/treino";
-import type { DiaSemana } from "@/types";
 import type { AlunoListResponse } from "@/types/aluno";
 import type { TreinoDetalhe } from "@/types/treino";
 import { Button } from "@/components/ui/button";
@@ -53,7 +50,6 @@ export function TreinoFormModal({
   const [alunoId, setAlunoId] = React.useState<string>(
     treino?.aluno.id ?? alunoFixo?.id ?? ""
   );
-  const [diaSemana, setDiaSemana] = React.useState<DiaSemana>(treino?.diaSemana ?? "SEGUNDA");
 
   // Só busca a lista de alunos quando ela é realmente necessária.
   const precisaEscolherAluno = !alunoFixo;
@@ -88,7 +84,6 @@ export function TreinoFormModal({
         body: JSON.stringify({
           ...(modo === "criar" ? { alunoId } : { alunoId }),
           nome: valores.nome.trim(),
-          diaSemana,
           observacoes: valores.observacoes.trim() || null,
         }),
       });
@@ -119,7 +114,7 @@ export function TreinoFormModal({
       onOpenChange={onOpenChange}
       size="lg"
       title={modo === "criar" ? "Novo treino" : "Editar treino"}
-      description="O treino fica vinculado a um aluno e a um dia da semana."
+      description="O treino fica vinculado a um aluno. Em quais dias ele cai é definido na programação."
       footer={
         <>
           <ModalClose render={<Button variant="outline" />}>Cancelar</ModalClose>
@@ -163,36 +158,15 @@ export function TreinoFormModal({
           ) : null}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="treino-nome">Nome do treino</Label>
-            <Input
-              id="treino-nome"
-              placeholder="Treino A · Superior"
-              aria-invalid={!!errors.nome}
-              {...register("nome")}
-            />
-            {errors.nome && <p className="text-sm text-destructive">{errors.nome.message}</p>}
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="treino-dia">Dia da semana</Label>
-            <Select
-              value={diaSemana}
-              onValueChange={(valor) => setDiaSemana((valor ?? "SEGUNDA") as DiaSemana)}
-            >
-              <SelectTrigger id="treino-dia" className="w-full">
-                <SelectValue>{(valor) => diaSemanaLabel(valor as DiaSemana)}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {DIAS_SEMANA_VALORES.map((dia) => (
-                  <SelectItem key={dia} value={dia}>
-                    {diaSemanaLabel(dia)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="treino-nome">Nome do treino</Label>
+          <Input
+            id="treino-nome"
+            placeholder="Treino A · Superior"
+            aria-invalid={!!errors.nome}
+            {...register("nome")}
+          />
+          {errors.nome && <p className="text-sm text-destructive">{errors.nome.message}</p>}
         </div>
 
         <div className="flex flex-col gap-2">

@@ -1,5 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { DIAS_SEMANA, hojeUTC } from "@/lib/date-utils";
+import type { DiaSemana } from "@/types";
 import type { Prisma } from "@prisma/client";
 import type {
   AdicionarExercicioInput,
@@ -60,23 +62,49 @@ async function garantirExercicioDoPersonal(personalId: string, exercicioId: stri
   return exercicio;
 }
 
-const includeResumo = {
-  aluno: { include: { user: { select: { name: true, avatarUrl: true } } } },
-  exercicios: {
-    select: { exercicio: { select: { grupoMuscular: true } } },
-    orderBy: { ordem: "asc" },
-  },
-  historico: { select: { dataExecucao: true }, orderBy: { dataExecucao: "desc" }, take: 1 },
-  _count: { select: { exercicios: true } },
-} satisfies Prisma.TreinoInclude;
+/**
+ * Dias em que o treino está prescrito na programação que vale hoje. O dia da
+ * semana não é mais um campo do treino: quem define isso é a programação.
+ */
+function incluirDiasProgramados(hoje: Date) {
+  return {
+    where: {
+      programacao: {
+        dataInicio: { lte: hoje },
+        OR: [{ dataFim: null }, { dataFim: { gte: hoje } }],
+      },
+    },
+    select: { diaSemana: true },
+  } satisfies Prisma.Treino$diasProgramadosArgs;
+}
 
-type TreinoResumoRaw = Prisma.TreinoGetPayload<{ include: typeof includeResumo }>;
+function includeResumoCom(hoje: Date) {
+  return {
+    aluno: { include: { user: { select: { name: true, avatarUrl: true } } } },
+    exercicios: {
+      select: { exercicio: { select: { grupoMuscular: true } } },
+      orderBy: { ordem: "asc" },
+    },
+    historico: { select: { dataExecucao: true }, orderBy: { dataExecucao: "desc" }, take: 1 },
+    diasProgramados: incluirDiasProgramados(hoje),
+    _count: { select: { exercicios: true } },
+  } satisfies Prisma.TreinoInclude;
+}
+
+type TreinoResumoRaw = Prisma.TreinoGetPayload<{
+  include: ReturnType<typeof includeResumoCom>;
+}>;
+
+/** Ordena os dias na sequência da semana (domingo -> sábado). */
+function ordenarDias(dias: { diaSemana: DiaSemana }[]): DiaSemana[] {
+  return DIAS_SEMANA.filter((dia) => dias.some((item) => item.diaSemana === dia));
+}
 
 function toListItem(treino: TreinoResumoRaw): TreinoListItem {
   return {
     id: treino.id,
     nome: treino.nome,
-    diaSemana: treino.diaSemana,
+    diasProgramados: ordenarDias(treino.diasProgramados),
     observacoes: treino.observacoes,
     ativo: treino.ativo,
     criadoEm: treino.createdAt.toISOString(),
@@ -96,11 +124,11 @@ export async function listarTreinos(
   query: ListarTreinosQuery
 ): Promise<TreinoListResponse> {
   const busca = query.q?.trim();
+  const hoje = hojeUTC();
 
   const where: Prisma.TreinoWhereInput = {
     personalId,
     ...(query.alunoId ? { alunoId: query.alunoId } : {}),
-    ...(query.diaSemana ? { diaSemana: query.diaSemana } : {}),
     ...(query.status === "ATIVOS" ? { ativo: true } : {}),
     ...(query.status === "INATIVOS" ? { ativo: false } : {}),
     ...(busca
@@ -121,7 +149,7 @@ export async function listarTreinos(
   const [treinos, total, todos, ativos] = await Promise.all([
     prisma.treino.findMany({
       where,
-      include: includeResumo,
+      include: includeResumoCom(hoje),
       orderBy: [{ ativo: "desc" }, { createdAt: "desc" }],
     }),
     prisma.treino.count({ where }),
@@ -140,10 +168,12 @@ export async function obterTreino(
   personalId: string,
   treinoId: string
 ): Promise<TreinoDetalhe | null> {
+  const hoje = hojeUTC();
+
   const treino = await prisma.treino.findFirst({
     where: { id: treinoId, personalId },
     include: {
-      ...includeResumo,
+      ...includeResumoCom(hoje),
       exercicios: {
         include: {
           exercicio: {
@@ -178,7 +208,7 @@ export async function obterTreino(
   return {
     id: treino.id,
     nome: treino.nome,
-    diaSemana: treino.diaSemana,
+    diasProgramados: ordenarDias(treino.diasProgramados),
     observacoes: treino.observacoes,
     ativo: treino.ativo,
     criadoEm: treino.createdAt.toISOString(),
@@ -205,7 +235,6 @@ export async function criarTreino(
       personalId,
       alunoId: input.alunoId,
       nome: input.nome,
-      diaSemana: input.diaSemana,
       observacoes: input.observacoes || null,
     },
   });
@@ -231,7 +260,6 @@ export async function atualizarTreino(
     where: { id: treino.id },
     data: {
       ...(input.nome !== undefined ? { nome: input.nome } : {}),
-      ...(input.diaSemana !== undefined ? { diaSemana: input.diaSemana } : {}),
       ...(input.observacoes !== undefined ? { observacoes: input.observacoes || null } : {}),
       ...(input.ativo !== undefined ? { ativo: input.ativo } : {}),
       ...(input.alunoId !== undefined ? { alunoId: input.alunoId } : {}),
@@ -275,7 +303,6 @@ export async function duplicarTreino(
       personalId,
       alunoId,
       nome: input.nome ?? `${original.nome} (cópia)`,
-      diaSemana: input.diaSemana ?? original.diaSemana,
       observacoes: original.observacoes,
       exercicios: {
         create: original.exercicios.map((item) => ({

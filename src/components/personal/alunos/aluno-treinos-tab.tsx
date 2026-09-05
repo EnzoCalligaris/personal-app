@@ -7,7 +7,7 @@ import { ArrowRightIcon, DumbbellIcon, PlusIcon } from "lucide-react";
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { diaSemanaLabel, formatarDataRelativa } from "@/lib/format";
+import { diasProgramadosLabel, formatarDataRelativa } from "@/lib/format";
 import type { TreinoListResponse } from "@/types/treino";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/loading";
 import { TreinoFormModal } from "@/components/personal/treinos/treino-form-modal";
+import { CalendarioTreinos } from "@/components/personal/programacao/calendario-treinos";
+import { ProgramacaoSemana } from "@/components/personal/programacao/programacao-semana";
 
 /** Treinos deste aluno, exibidos na aba "Treinos" da ficha. */
 export function AlunoTreinosTab({ aluno }: { aluno: { id: string; nome: string } }) {
@@ -23,6 +25,8 @@ export function AlunoTreinosTab({ aluno }: { aluno: { id: string; nome: string }
   const { data, loading, error, refetch } = useApi<TreinoListResponse>(
     `/api/personal/treinos?alunoId=${aluno.id}&status=TODOS`
   );
+
+  const [versaoCalendario, setVersaoCalendario] = React.useState(0);
 
   if (loading) return <SkeletonList items={3} />;
 
@@ -40,7 +44,12 @@ export function AlunoTreinosTab({ aluno }: { aluno: { id: string; nome: string }
   const treinos = data?.treinos ?? [];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
+      <ProgramacaoSemana aluno={aluno} onMudou={() => setVersaoCalendario((v) => v + 1)} />
+
+      <CalendarioTreinos alunoId={aluno.id} chave={versaoCalendario} />
+
+      <div className="flex flex-col gap-4">
       {treinos.length === 0 ? (
         <EmptyState
           icon={DumbbellIcon}
@@ -83,7 +92,7 @@ export function AlunoTreinosTab({ aluno }: { aluno: { id: string; nome: string }
                   <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium">{treino.nome}</span>
-                      <Badge variant="outline">{diaSemanaLabel(treino.diaSemana)}</Badge>
+                      <Badge variant="outline">{diasProgramadosLabel(treino.diasProgramados)}</Badge>
                       {!treino.ativo ? <Badge variant="secondary">Inativo</Badge> : null}
                     </div>
                     <span className="text-xs text-muted-foreground">
@@ -102,6 +111,7 @@ export function AlunoTreinosTab({ aluno }: { aluno: { id: string; nome: string }
           </ul>
         </>
       )}
+      </div>
 
       <TreinoFormModal
         open={criando}

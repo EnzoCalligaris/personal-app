@@ -21,14 +21,12 @@ const itemTreinoBase = {
 export const criarTreinoSchema = z.object({
   alunoId: z.uuid("Selecione o aluno."),
   nome: z.string().trim().min(2, "Informe o nome do treino."),
-  diaSemana: z.enum(DIAS_SEMANA_VALORES, { message: "Selecione o dia da semana." }),
   observacoes: z.string().trim().max(1000).optional().nullable(),
 });
 export type CriarTreinoInput = z.infer<typeof criarTreinoSchema>;
 
 export const editarTreinoSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome do treino.").optional(),
-  diaSemana: z.enum(DIAS_SEMANA_VALORES).optional(),
   observacoes: z.string().trim().max(1000).optional().nullable(),
   ativo: z.boolean().optional(),
   /** Permite transferir o treino para outro aluno do mesmo Personal. */
@@ -40,7 +38,6 @@ export const duplicarTreinoSchema = z.object({
   /** Ausente = duplica para o mesmo aluno. */
   alunoId: z.uuid().optional(),
   nome: z.string().trim().min(2).max(120).optional(),
-  diaSemana: z.enum(DIAS_SEMANA_VALORES).optional(),
 });
 export type DuplicarTreinoInput = z.infer<typeof duplicarTreinoSchema>;
 
@@ -67,7 +64,6 @@ export type ReordenarExerciciosInput = z.infer<typeof reordenarExerciciosSchema>
 
 export const listarTreinosQuerySchema = z.object({
   alunoId: z.uuid().optional(),
-  diaSemana: z.enum(DIAS_SEMANA_VALORES).optional(),
   status: z.enum(["ATIVOS", "INATIVOS", "TODOS"]).default("ATIVOS"),
   q: z.string().trim().max(120).optional(),
 });

@@ -115,9 +115,11 @@ src/app/api/personal/      Endpoints administrativos (role PERSONAL)
 src/app/api/alunos/[id]/   Dados de um aluno (dono ou Personal vinculado)
 src/app/auth/callback/     Troca o código do link de e-mail pela sessão
 src/components/auth/       Formulários de login/registro/senha (client components)
+src/components/personal/   Telas do Personal (dashboard, alunos, treinos, programação)
 src/components/ui/         Componentes shadcn/ui (Base UI)
 src/lib/auth/session.ts    Resolve o usuário autenticado + role (AuthContext)
 src/lib/auth/guards.ts     requireAuth/requirePersonal/requireAluno + regras de ownership
+src/lib/programacoes/      Programação semanal + resolução do treino previsto por data
 src/lib/prisma.ts          Cliente Prisma (adapter-pg)
 src/lib/supabase/          Clientes Supabase (browser, server, admin, middleware)
 src/proxy.ts               Proxy (antigo middleware) - sessão + redirecionamento por role
@@ -130,15 +132,57 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
 
-## Treinos (Fase 7)
+## Programação de treinos (Fase 8)
 
-Montagem de fichas em `/personal/treinos`, com editor em `/personal/treinos/[id]`. Cada treino é
-**vinculado a um aluno** e a um dia da semana, e reúne exercícios da biblioteca com séries,
-repetições, carga, descanso e observações.
+Define **qual treino o aluno faz em cada dia da semana**, dentro de um período. Fica na aba
+**Treinos** da ficha do aluno (`/personal/alunos/[id]`), com a rotina semanal e o calendário das
+próximas 4 semanas.
 
 | Endpoint | O que faz |
 | -------- | --------- |
-| `GET/POST /api/personal/treinos` | Lista (filtros por aluno, dia, status e busca) e cria |
+| `GET /api/personal/programacoes?alunoId=` | Programações do aluno (histórico) + a vigente hoje |
+| `POST /api/personal/programacoes` | Cria uma programação (opcionalmente já com os dias) |
+| `GET/PATCH/DELETE /api/personal/programacoes/[id]` | Detalhe, edição de nome/período e exclusão |
+| `PUT /api/personal/programacoes/[id]/dias/[dia]` | Associa ou troca o treino de um dia |
+| `DELETE /api/personal/programacoes/[id]/dias/[dia]` | Remove o treino do dia (vira descanso) |
+| `GET /api/personal/alunos/[id]/calendario?de=&ate=` | O previsto em cada data do período (padrão: 4 semanas) |
+| `GET /api/personal/alunos/[id]/treino-do-dia?data=` | O previsto em uma data (padrão: hoje) |
+
+Modelo: `Programacao` (aluno + período) tem até 7 `ProgramacaoDia` (`diaSemana` → `treino`). O
+`Treino` **não guarda mais o dia da semana** — a coluna `treinos.diaSemana` foi removida na
+migration `20260905133000_programacao_de_treinos`, que converteu os dias já cadastrados em uma
+"Programação inicial" por aluno.
+
+Regras da resolução (`src/lib/programacoes/queries.ts`, o mesmo código que vai alimentar o
+"Treino de hoje" do aluno):
+
+- **Ausência de linha = descanso.** Um dia sem `ProgramacaoDia` é descanso explícito; uma data fora
+  de qualquer período responde `SEM_PROGRAMACAO` (nada prescrito ainda).
+- **Vale a programação mais recente.** Entre as que cobrem a data, ganha a de maior `dataInicio` —
+  assim uma rotina nova substitui a anterior mesmo que a antiga tenha ficado com um período longo.
+- **Criar uma nova encerra a anterior.** Programações em aberto que alcançam a nova data de início
+  recebem `dataFim` na véspera, para não existirem duas rotinas valendo no mesmo dia.
+- **Datas em UTC puro** (`src/lib/date-utils.ts`): `dataInicio`/`dataFim` são `@db.Date` e as
+  comparações usam `getUTCDay()`, para o fuso do servidor nunca deslocar um treino de dia.
+- **Isolamento**: programar aluno de outro Personal responde 404, e um treino só pode ser prescrito
+  para o aluno dono da ficha (usar o treino de outro aluno também responde 404).
+- Consultas em lote (`proximosTreinosDeAlunos`, `treinosPrevistosPara`) resolvem vários alunos/datas
+  em uma única query — é assim que o dashboard e a listagem de alunos mostram o "próximo treino"
+  sem N+1.
+
+Cobertura: `tests/programacao-http.test.ts` (25 testes) exercita autorização, montagem da semana,
+troca e remoção de dias, resolução por data, repetição na semana seguinte, virada de mês, edição de
+período e a troca de programação ao longo do tempo.
+
+## Treinos (Fase 7)
+
+Montagem de fichas em `/personal/treinos`, com editor em `/personal/treinos/[id]`. Cada treino é
+**vinculado a um aluno** e reúne exercícios da biblioteca com séries, repetições, carga, descanso
+e observações. Em que dia da semana cada ficha cai é decidido na [programação](#programação-de-treinos-fase-8).
+
+| Endpoint | O que faz |
+| -------- | --------- |
+| `GET/POST /api/personal/treinos` | Lista (filtros por aluno, status e busca) e cria |
 | `GET/PATCH/DELETE /api/personal/treinos/[id]` | Detalhe, edição (inclui desativar) e exclusão |
 | `POST /api/personal/treinos/[id]/duplicar` | Duplica com todos os exercícios, para o mesmo aluno ou outro |
 | `POST /api/personal/treinos/[id]/exercicios` | Adiciona um exercício ao final da ficha |

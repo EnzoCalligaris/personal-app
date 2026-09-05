@@ -10,6 +10,7 @@ import {
   createAvaliacao,
   createHistorico,
   createPersonal,
+  createProgramacao,
   createTreino,
 } from "./factories";
 import { get, login, SENHA } from "./http";
@@ -67,17 +68,28 @@ beforeAll(async () => {
 
   const treinoDeHoje = await createTreino(personal.personalProfile.id, ana.alunoProfile.id, {
     nome: "Treino A · Superior",
-    diaSemana: hoje,
   });
-  await createTreino(personal.personalProfile.id, ana.alunoProfile.id, {
+  const treinoDeAmanha = await createTreino(personal.personalProfile.id, ana.alunoProfile.id, {
     nome: "Treino B · Inferior",
-    diaSemana: amanha,
   });
-  // Treino inativo não deve entrar na contagem de "treinos de hoje".
-  await createTreino(personal.personalProfile.id, bruno.alunoProfile.id, {
+  const treinoArquivado = await createTreino(personal.personalProfile.id, bruno.alunoProfile.id, {
     nome: "Treino arquivado",
-    diaSemana: hoje,
     ativo: false,
+  });
+
+  // Os dias vêm da programação: a da Ana prescreve treino hoje e amanhã.
+  await createProgramacao(personal.personalProfile.id, ana.alunoProfile.id, {
+    dataInicio: emDias(-7),
+    dias: [
+      { diaSemana: hoje, treinoId: treinoDeHoje.id },
+      ...(amanha !== hoje ? [{ diaSemana: amanha, treinoId: treinoDeAmanha.id }] : []),
+    ],
+  });
+
+  // O treino do Bruno cai hoje, mas está inativo - não deve contar.
+  await createProgramacao(personal.personalProfile.id, bruno.alunoProfile.id, {
+    dataInicio: emDias(-7),
+    dias: [{ diaSemana: hoje, treinoId: treinoArquivado.id }],
   });
 
   await createHistorico(treinoDeHoje.id, ana.alunoProfile.id, { dataExecucao: emDias(-2) });
@@ -107,8 +119,13 @@ beforeAll(async () => {
   });
 
   // Dados do outro Personal - nada disso pode aparecer no dashboard.
-  await createTreino(outroPersonal.personalProfile.id, alunoDoOutro.alunoProfile.id, {
-    diaSemana: hoje,
+  const treinoDoOutro = await createTreino(
+    outroPersonal.personalProfile.id,
+    alunoDoOutro.alunoProfile.id
+  );
+  await createProgramacao(outroPersonal.personalProfile.id, alunoDoOutro.alunoProfile.id, {
+    dataInicio: emDias(-7),
+    dias: [{ diaSemana: hoje, treinoId: treinoDoOutro.id }],
   });
   await createAgendamento(outroPersonal.personalProfile.id, alunoDoOutro.alunoProfile.id, {
     data: emDias(0, 10),
