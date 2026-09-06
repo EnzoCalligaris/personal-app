@@ -1,230 +1,520 @@
-# Personal App
+# Pulse Training
 
-Plataforma web para Personal Trainers e seus alunos: gestão de alunos, treinos personalizados por dia, agenda de horários, avaliações de bioimpedância com evolução e feedbacks.
+Plataforma web onde um Personal Trainer conduz seus alunos e cada aluno acompanha o próprio
+treino — do primeiro cadastro à evolução mês a mês.
 
-## Stack
+O Personal monta fichas, organiza a semana de cada aluno, controla a agenda, registra avaliações
+de bioimpedância e comenta a evolução. O aluno abre o app, vê o treino do dia, executa série por
+série, marca o horário do próximo atendimento e acompanha os próprios números — sem nunca
+enxergar dados de outro aluno.
 
-- [Next.js 16](https://nextjs.org) (App Router, TypeScript)
-- [Tailwind CSS 4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com)
-- [Prisma 7](https://www.prisma.io) + PostgreSQL ([Supabase](https://supabase.com))
-- [Supabase Auth](https://supabase.com/docs/guides/auth) (login/roles Personal x Aluno)
-- [Zod](https://zod.dev) + [React Hook Form](https://react-hook-form.com) para formulários
+```bash
+git clone <url-do-repositorio> && cd personal-app
+npm install
+npm run supabase:start     # sobe Postgres + Auth locais (precisa de Docker)
+cp .env.example .env       # preencha com os valores impressos acima
+npm run db:generate && npm run db:deploy && npm run db:seed
+npm run dev                # http://localhost:3000
+```
 
-## Setup local
+O passo a passo detalhado está em [Instalação](#9-instalação).
 
-A autenticação usa Supabase Auth, então o jeito mais simples de desenvolver é com a **stack
-local do Supabase** (Postgres + Auth + captura de e-mails), via Docker. Isso não requer nenhum
-projeto na nuvem - tudo roda na sua máquina.
+---
 
-1. Instale as dependências:
-   ```bash
-   npm install
-   ```
-2. Suba a stack local do Supabase (requer Docker rodando):
-   ```bash
-   npm run supabase:start
-   ```
-   Na primeira vez isso baixa as imagens Docker (Postgres, Auth, Studio, captura de e-mail) e
-   imprime as credenciais locais. Copie `.env.example` para `.env` e preencha com os valores
-   impressos (`API_URL` → `NEXT_PUBLIC_SUPABASE_URL`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `DB_URL` →
-   `DATABASE_URL`/`DIRECT_URL`). Para reimprimir depois: `npm run supabase:status`.
-3. Aplique as migrations do Prisma nesse banco (schema `public`, ao lado do schema `auth` do
-   Supabase):
-   ```bash
-   npm run db:generate
-   npm run db:deploy
-   ```
-4. Crie os usuários de teste (2 Personals, 3 Alunos - veja a tabela abaixo):
-   ```bash
-   npm run db:seed
-   ```
-5. Rode o servidor de desenvolvimento:
-   ```bash
-   npm run dev
-   ```
+## Índice
 
-Abra [http://localhost:3000](http://localhost:3000). O Supabase Studio local fica em
-`http://127.0.0.1:54323` e a caixa de e-mail de teste (recuperação de senha etc.) em
-`http://127.0.0.1:54324`.
+| | | |
+| --- | --- | --- |
+| [1. Objetivo](#1-objetivo) | [7. Banco de dados](#7-banco-de-dados) | [13. Migrations](#13-migrations) |
+| [2. Funcionalidades](#2-funcionalidades) | [8. Variáveis de ambiente](#8-variáveis-de-ambiente) | [14. Testes](#14-testes) |
+| [3. Tecnologias](#3-tecnologias) | [9. Instalação](#9-instalação) | [15. Usuários de demonstração](#15-usuários-de-demonstração) |
+| [4. Arquitetura](#4-arquitetura) | [10. Backend](#10-como-executar-o-backend) | [16. Build](#16-como-fazer-build) |
+| [5. Estrutura de pastas](#5-estrutura-de-pastas) | [11. Frontend](#11-como-executar-o-frontend) | [17. Produção](#17-como-executar-em-produção) |
+| [6. Scripts](#6-scripts) | [12. Banco](#12-como-executar-o-banco) | |
 
-Para produção, veja a seção **Deploy em produção**.
+Documentação complementar: [funcionalidades em detalhe](docs/funcionalidades.md) ·
+[segurança](docs/seguranca.md) · [desempenho](docs/desempenho.md) ·
+[interface](docs/interface.md) · [testes](docs/testes.md)
 
-### Usuários de teste (`npm run db:seed`)
+---
 
-Senha para todos: **`Teste@12345`**
+## 1. Objetivo
 
-| E-mail                | Role     | Vínculo              |
-| ---------------------- | -------- | --------------------- |
-| `personal1@teste.com` | PERSONAL | -                      |
-| `personal2@teste.com` | PERSONAL | -                      |
-| `aluno1@teste.com`    | ALUNO    | vinculado a personal1 |
-| `aluno2@teste.com`    | ALUNO    | vinculado a personal1 |
-| `aluno3@teste.com`    | ALUNO    | vinculado a personal2 |
+Personal Trainers trabalham com planilha, PDF no WhatsApp e caderno de horários. O treino do aluno
+mora num arquivo que envelhece, a carga de ontem se perde e o reagendamento vira conversa.
 
-Útil para testar as regras de acesso: `personal1` só deve ver `aluno1`/`aluno2`; `aluno1` só deve
-ver os próprios dados (nunca os de `aluno2` ou `aluno3`).
+Esta plataforma resolve isso em um lugar só, com duas visões do mesmo dado:
 
-### Alternativa: só o banco (sem Supabase), para trabalhar apenas no schema
+- **Para o Personal**, uma ferramenta de trabalho: carteira de alunos, biblioteca de exercícios
+  reaproveitável, fichas montadas por arrastar, programação semanal, agenda com regras próprias,
+  avaliações de composição corporal e um canal de feedback.
+- **Para o aluno**, um app de treino: o que fazer hoje, quanto levantar, quanto descansar, o
+  histórico do que já foi feito e a evolução em gráfico — em uma interface pensada para o celular,
+  com o aparelho na mão no meio da série.
+
+O isolamento entre contas é regra de projeto, não detalhe: um aluno acessa apenas os próprios
+dados, e um Personal apenas os alunos vinculados a ele. Isso é verificado por
+[testes que tentam a invasão](docs/seguranca.md), endpoint por endpoint.
+
+## 2. Funcionalidades
+
+### Personal Trainer
+
+| Área | O que faz |
+| --- | --- |
+| **Alunos** | Cadastro com senha temporária gerada, busca, edição, desativação sem perder histórico |
+| **Exercícios** | Biblioteca própria com grupo muscular, imagem e vídeo; arquivamento em vez de exclusão quando o exercício já está em uso |
+| **Treinos** | Fichas com séries, repetições, carga, descanso e observações; reordenação, duplicação e transferência entre alunos |
+| **Programação** | Monta a semana do aluno (Segunda: Treino A, Quarta: Treino B...) e resolve o treino previsto para qualquer data |
+| **Agenda** | Vistas de dia, semana e mês; horários de trabalho, bloqueios, confirmação, cancelamento e reagendamento, sem permitir conflito |
+| **Avaliações** | Bioimpedância com todos os campos opcionais — preenche só o que o equipamento mediu |
+| **Feedback** | Comentários por aluno, com status de leitura |
+| **Perfil** | Dados profissionais e as regras que governam a agenda (antecedência, janela, cancelamento) |
+
+### Aluno
+
+| Área | O que faz |
+| --- | --- |
+| **Início** | Treino de hoje, próximo atendimento, resumo da evolução e o último comentário do Personal |
+| **Treino** | Tela de execução: exercício atual, séries marcáveis, cronômetro de descanso e registro do que foi feito |
+| **Histórico** | Todos os treinos realizados, com duração, cargas e repetições |
+| **Evolução** | Progressão de carga por exercício, frequência, sequência e os gráficos de composição corporal |
+| **Agenda** | Marca, cancela e reagenda dentro das regras do Personal, vendo apenas horários realmente livres |
+| **Feedback** | Comentários recebidos, com o mais recente em destaque |
+| **Perfil** | Foto, contato e dados pessoais |
+
+Notificações internas avisam os dois lados (treino novo, avaliação cadastrada, agendamento
+confirmado ou cancelado), com a arquitetura preparada para e-mail, WhatsApp e push.
+
+O detalhamento de cada uma está em [docs/funcionalidades.md](docs/funcionalidades.md).
+
+## 3. Tecnologias
+
+| Camada | Escolha | Versão |
+| --- | --- | --- |
+| Framework | [Next.js](https://nextjs.org) (App Router, Server Components, Route Handlers) | 16.3 |
+| Linguagem | TypeScript, modo estrito | 5 |
+| Interface | [React](https://react.dev) | 19.2 |
+| Estilo | [Tailwind CSS](https://tailwindcss.com) | 4 |
+| Componentes | [shadcn/ui](https://ui.shadcn.com) sobre [Base UI](https://base-ui.com) | — |
+| Banco | PostgreSQL, no [Supabase](https://supabase.com) | 17 |
+| ORM | [Prisma](https://www.prisma.io) com driver adapter (`@prisma/adapter-pg`) | 7.10 |
+| Autenticação | [Supabase Auth](https://supabase.com/docs/guides/auth) (e-mail e senha, bcrypt) | — |
+| Arquivos | Supabase Storage (fotos de perfil e de exercícios) | — |
+| Validação | [Zod](https://zod.dev) + [React Hook Form](https://react-hook-form.com) | 4 / 7 |
+| Testes | [Vitest](https://vitest.dev) contra servidor real + [Playwright](https://playwright.dev) | 5 / 1.62 |
+
+> **Atenção ao atualizar:** Next.js 16 e Prisma 7 trouxeram mudanças que quebram o que se
+> encontra em tutoriais mais antigos — `middleware.ts` virou `proxy.ts` com export `proxy`, e a
+> conexão do banco saiu do `schema.prisma` para o `prisma.config.ts`. A referência confiável é
+> `node_modules/next/dist/docs` e <https://pris.ly/d/major-version-upgrade>.
+
+## 4. Arquitetura
+
+**Uma aplicação só.** Não há um servidor de frontend e outro de backend: o Next.js serve as duas
+coisas no mesmo processo. As páginas são Server Components que renderizam componentes de cliente;
+esses componentes falam com os Route Handlers em `src/app/api/**`, que são o backend.
+
+```
+Navegador
+   │
+   ├── páginas (Server Components) ──── src/proxy.ts ── redireciona por sessão e role
+   │
+   └── fetch /api/** ─── Route Handler
+                             │
+                             ├── guarda (requireAuth / requirePersonal / requireAluno)
+                             │      └── valida o token no Supabase Auth
+                             │      └── lê a role no banco (nunca do token)
+                             │
+                             ├── validação do corpo (Zod)
+                             │
+                             └── consulta (src/lib/**/queries.ts) ── Prisma ── PostgreSQL
+```
+
+### Três decisões que explicam o resto
+
+**O dono do dado vem sempre da sessão, nunca da requisição.** Toda consulta carrega o dono no
+`where` (`{ id, personalId }`, `{ id, alunoId }`), então um id de terceiro simplesmente não casa.
+Recurso que existe mas não é seu responde **404, não 403** — 403 confirmaria que o dado existe.
+
+**As páginas e a API se protegem de forma independente.** O `proxy.ts` cuida só de redirecionar
+páginas; ele não roda em `/api/**`. Cada endpoint aplica a própria guarda, que lê a role do banco
+— um token antigo não consegue manter um acesso revogado.
+
+**Regras de negócio ficam em funções puras quando dá.** Sobreposição de horários, geração de
+slots, prazos de cancelamento e datas de calendário vivem em `src/lib/agenda/` e
+`src/lib/date-utils.ts`, testáveis sem banco e sem HTTP.
+
+Mais detalhes em [docs/seguranca.md](docs/seguranca.md) e [docs/desempenho.md](docs/desempenho.md).
+
+## 5. Estrutura de pastas
+
+```
+docs/                        Documentação por assunto
+prisma/
+  schema.prisma              Modelo de dados
+  migrations/                12 migrations versionadas
+prisma.config.ts             Configuração do Prisma 7 (datasource via env)
+supabase/config.toml         Stack local do Supabase (portas, auth, redirects)
+scripts/
+  seed-test-users.ts         Usuários e dados de demonstração
+  seed-ui-estresse.ts        Conta com conteúdo extremo, para revisar a interface
+  guard-seed.ts              Trava que impede seed em banco não-local
+  auditoria-ui.ts            Varre as telas em 4 tamanhos (overflow, erros, toque)
+  screenshots.ts             Capturas em mobile/tablet/desktop, claro e escuro
+src/
+  app/                       Rotas (App Router)
+    api/auth/                Cadastro, login, logout, recuperação de senha
+    api/me/                  Usuário autenticado (qualquer role)
+    api/personal/            Endpoints do Personal (role PERSONAL)
+    api/aluno/               Endpoints do aluno (role ALUNO, escopo pela sessão)
+    api/alunos/[id]/         Dados de um aluno (o próprio ou o Personal vinculado)
+    personal/                Telas do Personal
+    aluno/                   Telas do aluno
+    error.tsx                Anteparo de erro por rota
+    global-error.tsx         Anteparo do layout raiz
+  components/
+    ui/                      Componentes base (shadcn/ui sobre Base UI)
+    layout/                  Casca: sidebar, topo, navegação inferior, notificações
+    personal/                Telas do Personal
+    aluno/                   Telas do aluno
+  lib/
+    auth/                    session.ts (AuthContext) e guards.ts (regras de acesso)
+    agenda/                  Horários, geração de slots, conflitos e regras
+    aluno/                   Consultas da área do aluno
+    programacoes/            Semana do aluno e treino previsto por data
+    avaliacoes/ feedbacks/   Bioimpedância e comentários
+    notificacoes/            Eventos, mensagens e canais de entrega
+    supabase/                Clientes (server, admin, cookies, proxy)
+    prisma.ts                Cliente Prisma
+    env.ts                   Leitura das variáveis com erro acionável
+  proxy.ts                   Sessão e redirecionamento por role (só páginas)
+  types/                     Tipos compartilhados
+tests/                       21 arquivos, 377 testes
+Dockerfile                   Imagem de produção
+```
+
+## 6. Scripts
+
+| Script | O que faz |
+| --- | --- |
+| `npm run dev` | Servidor de desenvolvimento (frontend + backend) |
+| `npm run build` | Build de produção |
+| `npm start` | Roda o build de produção |
+| `npm run lint` | ESLint |
+| `npm test` | Suíte completa (377 testes) |
+| `npm run db:generate` | Gera o Prisma Client a partir do schema |
+| `npm run db:migrate` | Cria e aplica migrations em desenvolvimento |
+| `npm run db:deploy` | Aplica migrations pendentes (produção) |
+| `npm run db:push` | Sincroniza o schema sem criar migration |
+| `npm run db:studio` | Abre o Prisma Studio |
+| `npm run db:seed` | Cria usuários e dados de demonstração |
+| `npm run supabase:start` | Sobe a stack local do Supabase (Docker) |
+| `npm run supabase:stop` | Para a stack local |
+| `npm run supabase:status` | Reimprime URLs e chaves locais |
+| `npm run ui:audit` | Revisa as telas nos 4 tamanhos |
+| `npm run ui:estresse` | Cria a conta de conteúdo extremo |
+| `npm run screenshots` | Capturas em vários tamanhos e temas |
+
+## 7. Banco de dados
+
+PostgreSQL. O schema da aplicação vive em `public`, ao lado do schema `auth` gerenciado pelo
+Supabase — `users.id` é uma foreign key para `auth.users.id`, então conta e perfil nascem e morrem
+juntos.
+
+### Modelos
+
+| Grupo | Modelos |
+| --- | --- |
+| Contas | `User`, `PersonalProfile`, `AlunoProfile` |
+| Treino | `Exercicio`, `Treino`, `TreinoExercicio` |
+| Programação | `Programacao`, `ProgramacaoDia` |
+| Execução | `HistoricoTreino`, `HistoricoExercicio` |
+| Agenda | `Disponibilidade`, `Agendamento`, `Bloqueio`, `ConfiguracaoAgenda` |
+| Acompanhamento | `Avaliacao`, `Feedback`, `Notificacao` |
+
+Enums: `Role`, `DiaSemana`, `StatusAluno`, `StatusAgendamento`, `TipoNotificacao`.
+
+### Duas convenções que evitam bug
+
+**Multi-tenant por coluna.** Quase toda tabela carrega `personalId` e/ou `alunoId`. É o que
+permite escopar cada consulta pelo dono, em vez de confiar em filtro na aplicação.
+
+**Execução guarda um retrato, não uma referência.** `HistoricoExercicio` copia nome, grupo, séries,
+repetições e carga do momento em que o treino foi feito. Se a ficha mudar depois, o histórico
+continua contando o que realmente aconteceu.
+
+## 8. Variáveis de ambiente
+
+Todas em [`.env.example`](.env.example), com a origem de cada valor. Copie para `.env` e preencha
+— **nenhuma credencial vai para o repositório** (`.env*` está no `.gitignore`).
+
+| Variável | Para que serve | Onde pegar |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto. Pública, vai para o navegador | Settings → API → Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave anônima. Pública; sozinha não dá acesso a nada | Settings → API → `anon public` |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Secreta.** Gerencia contas do Auth. Só no servidor | Settings → API → `service_role` |
+| `DATABASE_URL` | Conexão usada pela aplicação. Em produção, a do **pooler** (porta 6543) | Settings → Database → Connection pooling |
+| `DIRECT_URL` | Conexão direta (porta 5432), usada só pelo Prisma CLI nas migrations | Settings → Database |
+
+Localmente, `npm run supabase:start` imprime todos esses valores; `DATABASE_URL` e `DIRECT_URL`
+são iguais (não há pooler local).
+
+Se faltar alguma, a aplicação não sobe e diz qual é e onde encontrá-la (`src/lib/env.ts`) — em vez
+de quebrar mais adiante, dentro de uma requisição.
+
+## 9. Instalação
+
+**Pré-requisitos:** [Node.js 22+](https://nodejs.org), [Docker](https://docs.docker.com/get-docker/)
+em execução e a [CLI do Supabase](https://supabase.com/docs/guides/local-development).
+
+Nada precisa ser criado na nuvem: a stack local sobe Postgres, Auth, Storage e uma caixa de
+e-mail de teste na sua máquina.
+
+**1. Clone e instale as dependências**
+
+```bash
+git clone <url-do-repositorio>
+cd personal-app
+npm install
+```
+
+**2. Suba a stack local do Supabase**
+
+```bash
+npm run supabase:start
+```
+
+Na primeira vez isso baixa as imagens Docker e demora alguns minutos. Ao terminar, imprime as
+credenciais locais.
+
+**3. Configure o `.env`**
+
+```bash
+cp .env.example .env
+```
+
+Preencha com os valores impressos no passo anterior:
+
+| Valor impresso | Variável |
+| --- | --- |
+| `API URL` | `NEXT_PUBLIC_SUPABASE_URL` |
+| `anon key` | `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
+| `service_role key` | `SUPABASE_SERVICE_ROLE_KEY` |
+| `DB URL` | `DATABASE_URL` **e** `DIRECT_URL` |
+
+Para reimprimir depois: `npm run supabase:status`.
+
+**4. Prepare o banco**
+
+```bash
+npm run db:generate    # gera o Prisma Client
+npm run db:deploy      # aplica as 12 migrations
+npm run db:seed        # cria os usuários e dados de demonstração
+```
+
+**5. Rode a aplicação**
+
+```bash
+npm run dev
+```
+
+Abra <http://localhost:3000> e entre com um dos [usuários de demonstração](#15-usuários-de-demonstração).
+
+### Serviços locais
+
+| Endereço | O que é |
+| --- | --- |
+| <http://localhost:3000> | A aplicação |
+| <http://127.0.0.1:54323> | Supabase Studio (inspecionar o banco) |
+| <http://127.0.0.1:54324> | Caixa de e-mail de teste (recuperação de senha) |
+| `127.0.0.1:54322` | PostgreSQL |
+
+## 10. Como executar o backend
+
+O backend são os Route Handlers em `src/app/api/**`, servidos pelo **mesmo processo** do frontend.
+Não existe comando separado: `npm run dev` sobe os dois.
+
+```bash
+npm run dev      # backend + frontend em http://localhost:3000
+```
+
+Para conferir se a API está de pé:
+
+```bash
+curl -i http://localhost:3000/api/me     # 401 sem sessão é a resposta correta
+```
+
+São 58 endpoints. Todos exigem sessão, exceto login, cadastro, logout e recuperação de senha.
+
+## 11. Como executar o frontend
+
+Mesmo comando — no Next.js as duas camadas são a mesma aplicação:
+
+```bash
+npm run dev
+```
+
+São 25 páginas: as públicas (apresentação, login, cadastro, recuperação de senha), a área do
+Personal em `/personal/**` e a do aluno em `/aluno/**`. O acesso a cada área é decidido pela role
+da conta; entrar como aluno em uma tela do Personal redireciona de volta.
+
+Há também um catálogo dos componentes de interface em <http://localhost:3000/design-system>.
+
+## 12. Como executar o banco
+
+```bash
+npm run supabase:start     # sobe Postgres, Auth, Storage e a caixa de e-mail
+npm run supabase:status    # reimprime URLs e chaves
+npm run supabase:stop      # para tudo (os dados ficam no volume Docker)
+npm run db:studio          # navega pelos dados no Prisma Studio
+```
+
+### Alternativa: só o Postgres, sem Supabase
+
+Serve para mexer apenas no schema. Login, cadastro e upload de imagem não funcionam nesse modo,
+porque dependem do Supabase Auth e do Storage.
 
 ```bash
 docker run -d --name personal-app-db \
   -e POSTGRES_USER=personal -e POSTGRES_PASSWORD=personal -e POSTGRES_DB=personal_app \
-  -p 55432:5432 postgres:16-alpine
+  -p 55432:5432 postgres:17-alpine
 ```
 
-No `.env`, deixe as variáveis `NEXT_PUBLIC_SUPABASE_*`/`SUPABASE_SERVICE_ROLE_KEY` em branco (a
-autenticação fica inativa) e aponte só o banco:
+No `.env`, deixe as variáveis do Supabase em branco e aponte só o banco:
+
 ```
 DATABASE_URL="postgresql://personal:personal@localhost:55432/personal_app"
 DIRECT_URL="postgresql://personal:personal@localhost:55432/personal_app"
 ```
-As migrations aplicam normalmente (`npm run db:deploy`): a primeira delas cria um `auth.users`
-mínimo quando esse schema não existe, que é o caso de um Postgres puro. O que não funciona nesse
-modo é login, cadastro e upload de imagem - tudo que depende do Supabase Auth e do Storage.
 
-## Scripts
+As migrations aplicam normalmente: a primeira delas cria um `auth.users` mínimo quando esse schema
+não existe.
 
-| Script              | Descrição                                  |
-| -------------------- | ------------------------------------------- |
-| `npm run dev`        | Servidor de desenvolvimento                 |
-| `npm run build`      | Build de produção                           |
-| `npm run start`      | Roda o build de produção                    |
-| `npm run lint`       | ESLint                                       |
-| `npm run db:generate`| Gera o Prisma Client a partir do schema      |
-| `npm run db:migrate` | Cria/aplica migrations em desenvolvimento    |
-| `npm run db:deploy`  | Aplica as migrations pendentes (produção)    |
-| `npm run db:push`    | Sincroniza o schema com o banco sem migration|
-| `npm run db:studio`  | Abre o Prisma Studio                         |
-| `npm run db:seed`    | Cria os usuários de teste (Supabase Auth + perfis) |
-| `npm run supabase:start` | Sobe a stack local do Supabase (Docker)  |
-| `npm run supabase:stop`  | Para a stack local do Supabase           |
-| `npm run supabase:status`| Reimprime URLs/keys da stack local       |
-| `npm run test`       | Testes automatizados (373 testes; ver seção Testes) |
-| `npm run screenshots`| Captura a app em mobile/tablet/desktop (claro e escuro) |
-| `npm run ui:audit`   | Revisão de interface nos 4 tamanhos: overflow, erros e alvos de toque |
-| `npm run ui:estresse`| Cria a conta de conteúdo extremo usada na revisão de interface |
+## 13. Migrations
 
-## Testes automatizados
+São 12 migrations versionadas em `prisma/migrations/`, escritas à mão e aplicadas com
+`migrate deploy`.
 
 ```bash
-npm test          # 373 testes, 20 arquivos
+npm run db:deploy      # aplica o que falta (desenvolvimento e produção)
+npm run db:migrate     # cria uma nova a partir de mudanças no schema.prisma
 ```
 
-A suíte sobe um servidor Next de produção (`next start` na porta 3100, via `tests/global-setup.ts`)
-e fala com ele por HTTP, contra o Postgres e o Supabase Auth locais. Não há mock de banco nem de
-sessão: o que o teste exercita é o mesmo caminho do navegador — cookie de sessão, guarda de rota,
-consulta e resposta. `resetDb()` apaga só o domínio `@example.com`, preservando os usuários de
-desenvolvimento criados por `npm run db:seed`.
+Ao mudar o `schema.prisma`, gere a migration com `npm run db:migrate`, confira o SQL gerado e
+versione a pasta junto com o código. Depois de mudar o schema, rode `npm run db:generate` para o
+TypeScript enxergar os novos tipos.
 
-| Arquivo | Testes | Cobre |
-| --- | --: | --- |
-| `regras-agenda.test.ts` | 42 | Aritmética de horários, sobreposição, geração de slots, regras de antecedência/cancelamento e datas de calendário em UTC (puro, sem I/O) |
-| `seguranca-http.test.ts` | 30 | IDOR/BOLA, roles, mass assignment, sessão, cabeçalhos e CORS |
-| `agenda-http.test.ts` | 26 | Disponibilidade, conflitos, bloqueios, confirmação/cancelamento/reagendamento e as três vistas |
-| `programacao-http.test.ts` | 25 | Montagem da semana, treino previsto por data, calendário e troca de programação |
-| `treinos-http.test.ts` | 25 | Criação, edição da ficha, exercícios, ordem, duplicação, transferência e exclusão |
-| `aluno-http.test.ts` | 23 | Dashboard, fichas, agenda, evolução, feedbacks e perfil do próprio aluno |
-| `agendamento-aluno-http.test.ts` | 21 | Horários oferecidos, marcação, limites, cancelamento e reagendamento pelo aluno |
-| `contas-http.test.ts` | 21 | Cadastro, login, origem da role, recuperação/troca de senha e aluno desativado |
-| `alunos-http.test.ts` | 18 | Cadastro, senha temporária, busca, edição, desativação e isolamento |
-| `feedbacks-http.test.ts` | 18 | Escrita, leitura, status de lido, permissões e notificação |
-| `avaliacoes-http.test.ts` | 17 | Campos opcionais, correção, exclusão, histórico e isolamento |
-| `exercicios-http.test.ts` | 16 | Biblioteca por Personal, nome repetido, arquivamento e exclusão |
-| `auth-http.test.ts` | 16 | Login, autorização, roles e redirecionamento de página |
-| `notificacoes-http.test.ts` | 13 | Eventos que notificam, contador, marcar como lida e canais |
-| `schema.test.ts` | 13 | Modelo de dados: relações, unicidade e cascatas |
-| `execucao-http.test.ts` | 11 | Registro da sessão de treino e histórico |
-| `perfil-http.test.ts` | 11 | Perfil do Personal e do aluno, regras da agenda e foto |
-| `guards.test.ts` | 10 | `canAccessAluno` e `loadAccessibleAluno` |
-| `progresso-http.test.ts` | 9 | Progressão de carga, frequência, sequência e aderência |
-| `dashboard-http.test.ts` | 8 | Números, agenda do dia e listas do Personal |
+O histórico aplica limpo em um banco vazio — a primeira migration cria um `auth.users` mínimo
+apenas quando o schema `auth` não existe, para nunca colidir com o do Supabase real.
 
-### Como a suíte é validada
+## 14. Testes
 
-Somar testes não prova que eles pegam regressão. As regras críticas foram verificadas por
-**mutação**: quebrar a regra no código de propósito e confirmar que a suíte acusa.
+```bash
+npm test                              # 377 testes, 21 arquivos
+npx vitest run tests/agenda-http.test.ts   # um arquivo só
+```
 
-| Regra quebrada | Testes que acusaram |
+A suíte sobe um servidor Next de produção e fala com ele por HTTP, contra o Postgres e o Supabase
+Auth locais — sem mock de banco nem de sessão. O que o teste exercita é o mesmo caminho do
+navegador: cookie, guarda de rota, consulta e resposta. Os dados de teste vivem no domínio
+`@example.com` e são apagados ao final, preservando os de demonstração.
+
+| Frente | Cobertura |
 | --- | --- |
-| `where` do treino do aluno sem `alunoId` (IDOR) | 9, em 3 arquivos |
-| `where` do item de treino sem o dono | 1 (verificação no banco) |
-| `sobrepoe` com `<=` (atendimentos encostados viram conflito) | 13, em 4 arquivos |
-| Dia da programação sem checar o dono | 1 (depois de corrigido o teste) |
+| Regras de negócio | Agenda, conflitos, programação, execução, evolução |
+| Segurança | 30 testes que tentam a invasão em cada endpoint |
+| Desempenho | Orçamento de consultas ao banco, com detecção de N+1 |
+| Modelo de dados | Relações, unicidade e cascatas |
 
-A última linha valeu a auditoria: o teste passava com a regra quebrada, porque o payload apontava
-o dia para o mesmo treino que já estava lá — uma escrita bem-sucedida seria invisível. Corrigido
-para apontar a um treino do outro Personal.
+Detalhes, incluindo como a suíte é validada por mutação, em [docs/testes.md](docs/testes.md).
 
-Daí a convenção destes testes: em toda tentativa de escrita indevida, **conferir o efeito no
-banco, não só o status da resposta**. Uma rota pode gravar e só então responder 404.
+## 15. Usuários de demonstração
 
-## Deploy em produção
+Criados por `npm run db:seed`, junto com treinos, agenda, avaliações e histórico de exemplo.
+
+**Senha para todos: `Teste@12345`**
+
+| E-mail | Perfil | Vínculo |
+| --- | --- | --- |
+| `personal1@teste.com` | Personal | Tem os alunos 1 e 2, agenda e avaliações |
+| `personal2@teste.com` | Personal | Tem o aluno 3 — útil para ver as telas vazias |
+| `aluno1@teste.com` | Aluno | Vinculado a `personal1` |
+| `aluno2@teste.com` | Aluno | Vinculado a `personal1` |
+| `aluno3@teste.com` | Aluno | Vinculado a `personal2` |
+
+> Contas de desenvolvimento, com senha pública. `npm run db:seed` é bloqueado quando
+> `DATABASE_URL` não aponta para um banco local.
+
+Bom para conferir o isolamento: `personal1` não enxerga o `aluno3`, e `aluno1` não enxerga nada
+do `aluno2`.
+
+## 16. Como fazer build
+
+```bash
+npm run build
+```
+
+Compila frontend e backend juntos e valida os tipos — erro de TypeScript reprova o build. Gera
+também `.next/standalone`, um servidor com apenas as dependências que ele usa (é o que a imagem
+Docker copia).
+
+```bash
+npm start        # roda o build em http://localhost:3000
+```
+
+As variáveis `NEXT_PUBLIC_*` são embutidas no bundle **em tempo de build**: precisam existir
+quando o `npm run build` roda, não apenas na execução.
+
+## 17. Como executar em produção
 
 O banco e a autenticação são o Supabase gerenciado; o que sobe é só o servidor Next.
 
-### 1. Variáveis de ambiente
+### 1. Variáveis
 
-As mesmas de `.env.example`, apontando para o projeto real. Duas exigem atenção:
+As mesmas do [item 8](#8-variáveis-de-ambiente), apontando para o projeto real. Duas exigem
+atenção:
 
-- **`DATABASE_URL`** deve ser a de **connection pooling** (Settings → Database → Connection
-  pooling, porta 6543). O servidor abre conexões por requisição; sem o pooler o limite do
-  Postgres estoura.
-- **`DIRECT_URL`** é a conexão direta (porta 5432), usada só pelo Prisma CLI — migrations não
-  passam pelo pooler.
-
-`SUPABASE_SERVICE_ROLE_KEY` é secreta e só é lida no servidor. As `NEXT_PUBLIC_*` são embutidas
-no bundle **em tempo de build**: precisam existir na hora do `npm run build`, não só em execução.
-
-Faltando qualquer uma, a aplicação para de subir com uma mensagem dizendo qual é e onde pegar o
-valor (`src/lib/env.ts`) — em vez de quebrar mais adiante, dentro de uma requisição.
+- **`DATABASE_URL`** deve ser a de **connection pooling** (porta 6543). O servidor abre conexões
+  por requisição; sem o pooler o limite do Postgres estoura.
+- **`DIRECT_URL`** é a conexão direta (porta 5432) — migrations não passam pelo pooler.
 
 ### 2. Migrations
 
-Passo separado do start da aplicação, **antes** de publicar a nova versão:
+Passo separado, **antes** de publicar a nova versão:
 
 ```bash
-npm run db:deploy      # prisma migrate deploy - só aplica o que falta, nunca recria
+npm run db:deploy
 ```
 
 Rodar no start do contêiner faria duas réplicas migrarem o mesmo banco ao mesmo tempo.
 
-O histórico aplica limpo num banco vazio (verificado): a primeira migration cria um `auth.users`
-mínimo apenas quando o schema não existe, então nada colide com o `auth` real do Supabase.
-
-### 3. Build e execução
+### 3. Subir
 
 ```bash
-npm ci
-npm run build
-npm start
+npm ci && npm run build && npm start
 ```
 
-`next build` gera também `.next/standalone`, um servidor com apenas as dependências que ele usa.
-
-### 4. Docker
+Ou via Docker:
 
 ```bash
 docker build -t personal-app \
-  --build-arg NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co" \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="..." .
+  --build-arg NEXT_PUBLIC_SUPABASE_URL="https://SEU-PROJETO.supabase.co" \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="<sua-anon-key>" .
 
 docker run --rm -p 3000:3000 --env-file .env.producao personal-app
 ```
 
-A imagem roda como usuário sem privilégios, não embute segredo nenhum (só as duas variáveis
-públicas, que precisam entrar no bundle) e não executa migrations.
+A imagem roda como usuário sem privilégios, não embute segredo nenhum e não executa migrations.
 
-### 5. Antes de publicar
+### Antes de publicar
 
-- [ ] `npm test` passando (377 testes)
-- [ ] `npm run lint` limpo
+- [ ] `npm test` e `npm run lint` passando
 - [ ] `.env` de produção preenchido, `SUPABASE_SERVICE_ROLE_KEY` só no servidor
 - [ ] `npm run db:deploy` aplicado
 - [ ] **Não** rodar `npm run db:seed` nem `npm run ui:estresse` — criam contas com senha pública
-      e ficam bloqueados fora de um banco local
-- [ ] HTTPS na frente (o `Strict-Transport-Security` e o cookie `Secure` dependem disso)
-- [ ] Limite de tentativas de login na borda, se o provedor oferecer (o Supabase Auth já tem o
-      dele; a aplicação não implementa um próprio)
+- [ ] HTTPS na frente: o `Strict-Transport-Security` e o cookie `Secure` dependem disso
+- [ ] Limite de tentativas de login na borda, se o provedor oferecer
 
 ### O que já vem configurado
 
@@ -233,890 +523,8 @@ públicas, que precisam entrar no bundle) e não executa migrations.
 | Cabeçalhos de segurança e CSP | `next.config.ts` |
 | `Cache-Control: private, no-store` nas APIs | `next.config.ts` |
 | Sem `X-Powered-By` | `poweredByHeader: false` |
-| Cookie de sessão `HttpOnly`/`Secure`/`SameSite` | `src/lib/supabase/cookies.ts` |
+| Cookie de sessão `HttpOnly` / `Secure` / `SameSite` | `src/lib/supabase/cookies.ts` |
 | CORS fechado (nenhuma origem liberada) | padrão do Next, verificado em teste |
 | Proxy fecha o acesso se faltar configuração em produção | `src/lib/supabase/middleware.ts` |
-| Erro de servidor não vaza detalhe para a tela | rotas de API + `error.tsx`/`global-error.tsx` |
+| Erro de servidor não vaza detalhe para a tela | rotas de API + `error.tsx` / `global-error.tsx` |
 | Seeds bloqueados fora de banco local | `scripts/guard-seed.ts` |
-
-## Estrutura
-
-```
-supabase/config.toml       Config da stack local do Supabase (auth, portas, redirect URLs)
-prisma/schema.prisma       Modelo de dados (users, treinos, agenda, avaliações...)
-prisma.config.ts           Configuração do Prisma 7 (datasource via env)
-scripts/seed-test-users.ts Cria os usuários de teste
-src/app/                   Rotas (App Router)
-src/app/api/auth/          Cadastro, login, logout, esqueci/redefinir senha
-src/app/api/me/            Dados do usuário autenticado (qualquer role)
-src/app/api/personal/      Endpoints administrativos (role PERSONAL)
-src/app/api/aluno/         Endpoints da área do aluno (role ALUNO, sempre pela sessão)
-src/app/api/alunos/[id]/   Dados de um aluno (dono ou Personal vinculado)
-src/app/auth/callback/     Troca o código do link de e-mail pela sessão
-src/components/auth/       Formulários de login/registro/senha (client components)
-src/components/aluno/      Telas do aluno (início, treinos, agenda, evolução, feedback, perfil)
-src/components/personal/   Telas do Personal (dashboard, alunos, treinos, programação)
-src/components/ui/         Componentes shadcn/ui (Base UI)
-src/lib/auth/session.ts    Resolve o usuário autenticado + role (AuthContext)
-src/lib/auth/guards.ts     requireAuth/requirePersonal/requireAluno + regras de ownership
-src/lib/agenda/            Horários de trabalho, geração de slots e regras de conflito
-src/lib/avaliacoes/        Avaliações de bioimpedância (medidas opcionais + variações)
-src/lib/feedbacks/         Comentários do Personal para os alunos
-src/lib/notificacoes/      Eventos, canais de entrega e a campainha (ver Fase 16)
-src/lib/aluno/             Consultas da área do aluno (escopadas pelo perfil da sessão)
-src/lib/programacoes/      Programação semanal + resolução do treino previsto por data
-src/lib/prisma.ts          Cliente Prisma (adapter-pg)
-src/lib/supabase/          Clientes Supabase (browser, server, admin, middleware)
-src/proxy.ts               Proxy (antigo middleware) - sessão + redirecionamento por role
-src/types/                 Tipos compartilhados
-tests/                     Testes automatizados (schema, guards, auth HTTP end-to-end)
-```
-
-> Nota: este projeto usa Next.js 16 e Prisma 7, que introduziram mudanças relevantes desde versões
-> anteriores (ex.: `middleware.ts` → `proxy.ts` com export `proxy`; conexão do banco sai do
-> `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
-> https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
-
-## Revisão de desempenho (Fase 21)
-
-Medir antes de mexer: o gargalo não estava onde a intuição apontava.
-
-### O que foi medido
-
-`tests/desempenho.test.ts` conta as idas ao banco de cada função de leitura, com 20 alunos,
-2 treinos e 3 execuções cada. O gancho fica em `src/lib/prisma.ts`, ligado por
-`PRISMA_LOG_QUERIES=1` (os testes ligam sozinhos).
-
-A marca de um N+1 é o custo **crescer com o volume**, então o teste principal roda a mesma
-listagem contra dois Personals - um com 20 alunos, outro com 2 - e exige o mesmo número de
-consultas. Os dois lados têm a mesma *forma* de dados (atendimentos, faixas de horário), senão a
-comparação mediria "vazio x cheio" em vez de crescimento.
-
-**Nenhum N+1.** Todas as listagens custam o mesmo com 2 e com 20 alunos:
-
-| Função | Consultas (2 alunos) | Consultas (20 alunos) |
-| --- | --: | --: |
-| `listarAlunos` | 12 | 12 |
-| `listarTreinos` | 10 | 10 |
-| `listarAvaliacoes` | 7 | 7 |
-| `listarFeedbacks` | 11 | 11 |
-| `agendaDoPeriodo` | 10 | 10 |
-| `getDashboardData` | 27 | 27 |
-
-O número é constante porque o Prisma emite uma consulta por relação incluída, e as resoluções em
-lote (`proximosTreinosDeAlunos`, `treinosPrevistosPara`) já usam `in` em vez de laço.
-
-### O gargalo real: autenticação em dobro
-
-Com o banco descartado, a latência apontou sozinha. **Todo** endpoint levava ~165-210ms, inclusive
-`/api/notificacoes`, que faz uma única consulta. Piso igual em endpoints de custo tão diferente é
-sinal de custo fixo por requisição - não de consulta lenta.
-
-Era o proxy. O matcher excluía só arquivos estáticos, então ele rodava também em `/api/**` e
-chamava `supabase.auth.getUser()` - uma ida de rede ao servidor de Auth. Logo em seguida a guarda
-do handler (`requireAuth`) chamava **a mesma validação de novo**. Duas por requisição, e a
-primeira não decidia nada: o proxy só redireciona páginas; numa rota de API ele não protege coisa
-alguma - quem protege é a guarda, que lê a role do banco.
-
-Excluir `/api/` do matcher tirou uma validação inteira de cada chamada:
-
-| Endpoint | Antes | Depois |
-| --- | --: | --: |
-| `/api/personal/dashboard` | 209ms | 118ms |
-| `/api/personal/alunos` | 191ms | 99ms |
-| `/api/personal/treinos` | 190ms | 94ms |
-| `/api/personal/agenda?vista=semana` | 184ms | 103ms |
-| `/api/notificacoes` | 170ms | 86ms |
-
-**Mediana geral: 99ms, contra ~180ms.** A segurança é exatamente a mesma - `tests/seguranca-http.test.ts`
-verifica os 58 endpoints um a um, e continua passando.
-
-### Também corrigido
-
-- **Imagens da biblioteca e da ficha com `loading="lazy"`**: a grade de exercícios mostra dezenas
-  de imagens de uma vez e quase todas nascem fora da tela. Na sessão de treino a imagem é o
-  conteúdo principal, então lá vale só `decoding="async"`.
-
-### Medido e deixado como está
-
-- **Requisições por tela: 2** (a da tela + notificações), sem nenhuma duplicada.
-- **Busca com debounce**: seis teclas geram uma requisição.
-- **Peso transferido**: 14kB na entrada, 54kB na tela mais pesada (agenda), comprimido.
-- **`getDashboardData` em 27 consultas** é o maior número da aplicação, mas é constante e o painel
-  junta seis blocos. Espremer isso pediria consulta manual em SQL no lugar dos `include` - troca
-  ruim de legibilidade por ~40ms.
-- **React Compiler desligado e pouca memoização manual**: sem nenhuma medição mostrando
-  re-renderização cara, ligar o compilador seria mexer no build por palpite.
-- **`next/image` não adotado**: exigiria `remotePatterns` para o host do Supabase e um caminho a
-  mais de falha, para imagens que já entram limitadas a 2 MB e são exibidas pequenas.
-
-### Ponto em aberto
-
-As listagens de alunos, treinos e exercícios não têm paginação - avaliações, feedbacks e
-notificações têm teto (100, 100 e o limite do sino). Na escala de um Personal (dezenas de alunos)
-isso não pesa; se a carteira crescer para centenas, é o primeiro lugar a mudar, e aí paginação é
-mudança de interface, não de consulta.
-
-## Revisão de interface (Fase 20)
-
-Todas as 23 telas conferidas em quatro tamanhos - smartphone (390), tablet (820), notebook (1280)
-e desktop (1920) - com prioridade para o celular.
-
-```bash
-npm run ui:audit     # percorre tudo e reporta; capturas em .auditoria-ui/
-```
-
-`scripts/auditoria-ui.ts` faz a parte que o olho não faz bem: mede o que ultrapassa a largura da
-viewport e **aponta o elemento culpado** (ignorando quem tem rolagem horizontal própria, que é
-intencional), coleta erros de console e mede alvos de toque no celular. O resto - espaçamento,
-tipografia, hierarquia - foi revisado nas capturas.
-
-**Overflow horizontal: zero** nas 92 combinações de tela e rota. **Erros de console: zero.**
-
-### Corrigido
-
-| Problema | Onde | Correção |
-| --- | --- | --- |
-| Semana da agenda ilegível no tablet: 7 colunas em ~100px truncavam o aluno para "A." | `agenda/vistas.tsx` | O grid passa a valer de `xl` (1280px), onde a coluna tem ~140px. Abaixo disso, um cartão por dia - o mesmo padrão que já funcionava no celular |
-| Vista de mês no celular: as pastilhas viravam "07:..." em células de ~50px | `agenda/vistas.tsx` | Um ponto por atendimento, colorido por status; o toque abre o dia com os detalhes. As pastilhas com hora e nome voltam a partir de `sm` |
-| A navegação inferior ficava na tela durante o treino, roubando altura e convidando ao toque errado no meio de uma série | `layout/bottom-nav.tsx` | Some na rota de sessão, que já tem saída própria (o × no topo). O botão "Concluir exercício" assume o rodapé - ~64px a mais de conteúdo |
-| "0 exercício(s)", "1 treinos seguidos", "1 avaliações registradas" | 11 componentes | Helper `plural()` em `lib/format.ts`, com forma irregular opcional (`plural(2, "avaliação", "avaliações")`) |
-| Título do grupo colado nos campos no modal de avaliação | `avaliacao-form-modal.tsx` | `<legend>` é a legenda do fieldset e fica fora do fluxo flex, então o `gap` não a alcançava: margem explícita |
-| Ação principal da agenda vinha depois das secundárias no celular | `agenda/agenda.tsx` | "Novo agendamento" lidera a linha em telas pequenas |
-| Botões de tema e notificações com 36px - abaixo dos 44px que o próprio design system define | `top-bar.tsx`, `notificacoes.tsx`, `auth-shell.tsx`, `page.tsx` | Aplicada a utility `.tap-target` que já existia |
-| Link da marca sem nome acessível quando o wordmark some: o leitor de tela anunciava só "link" | `layout/brand.tsx` | `aria-label` quando renderiza apenas o símbolo |
-
-### Segunda passada: tema escuro, conteúdo extremo e celular deitado
-
-A primeira passada rodou em tema claro, retrato, com os dados de demonstração - curtos e
-arrumados. Isso deixa de fora justamente onde o layout costuma ceder. A segunda passada cobriu:
-
-```bash
-npm run ui:estresse                       # cria a conta de conteúdo extremo
-UI_PERFIL=estresse UI_TEMA=escuro npm run ui:audit
-```
-
-`scripts/seed-ui-estresse.ts` monta uma conta com nome de 57 caracteres, uma palavra de 50
-caracteres **sem espaço nenhum**, 12 exercícios num treino, observações longas, seis avaliações
-com todos os campos e agenda cheia (cinco atendimentos por dia). `UI_TEMA=escuro` e o viewport
-`celular-deitado` (844x390) completam a matriz. A conta vive em `@example.com`, então `npm test`
-a remove junto com os dados de teste; recrie quando precisar.
-
-| Problema | Como apareceu | Correção |
-| --- | --- | --- |
-| Uma palavra de 50 caracteres sem espaço alargava o documento de 390 para **515px** e arrastava a barra fixa junto | Só com conteúdo extremo | `overflow-wrap: break-word` no `body`: rede de proteção para a classe inteira do problema (nome digitado sem espaço, e-mail longo, URL). Só age quando a palavra não caberia, e não interfere em `truncate` |
-| Abas do aluno nasciam cortadas nas duas pontas, com a aba ativa parcialmente escondida e **inalcançável** - `scrollLeft` não fica negativo | Só no celular, com 5 abas | `justify-content: safe center` no `TabsList`: centraliza quando cabe, alinha ao início quando transborda. Corrige todo `TabsList` que rola, não só este |
-| Celular deitado: a imagem do exercício sozinha ocupava mais que os 390px de altura da tela, e a barra "Concluir exercício" virava estática (o layout de `md` entra pela largura de 844px) e sumia abaixo da dobra | Só em paisagem | Variante `md-alto` (largura de tablet **e** altura suficiente) para o cabeçalho e a barra de ação, e teto de `38vh` na mídia. O botão principal volta a ficar sempre visível |
-
-Verificado e correto: a cor das variações na Evolução é semântica por métrica, não pelo sinal -
-massa magra caindo aparece em alerta, gordura caindo em sucesso (conferido pela cor computada, não
-a olho). O tema escuro não tem problema de layout nem de contraste nas 26 telas.
-
-### Microinterações
-
-A base já era boa e contida - `fade-up` na entrada, `shimmer` nos esqueletos, transição de cor nos
-controles, `active:scale-95` nos alvos de toque, indicador animado na navegação inferior, barra de
-progresso do treino com transição, e um bloco `prefers-reduced-motion` que corta tudo isso para
-quem pede menos movimento. Não havia motivo para empilhar mais.
-
-Foi adicionada **uma**: o troféu da tela "Treino concluído!" entra com uma batida de ênfase
-(`--animate-celebrar`, 0.45s, uma vez só). É o pagamento do esforço e acontece no fim do fluxo,
-onde a pausa é bem-vinda.
-
-### Decisões conscientes
-
-- **Chips de filtro e botões `sm` ficam em 32-36px**, abaixo dos 44px de conforto mas bem acima do
-  mínimo de 24px da WCAG 2.5.8. Subir todos mudaria a densidade da interface inteira; os alvos que
-  importam no celular (navegação inferior, marcar série, ações principais) já têm 44px ou mais.
-- **A vista de mês no celular mostra pontos, não texto.** Em 50px de largura, meia palavra informa
-  menos que a contagem visual - o detalhe fica a um toque.
-
-## Revisão de segurança (Fase 18)
-
-Auditoria completa de autenticação, autorização, endpoints, validação e proteção de dados
-pessoais, com foco em **IDOR/BOLA** — trocar um id na requisição para alcançar dados de
-outra pessoa.
-
-### Como o acesso é decidido
-
-O id do usuário **nunca vem da requisição**: sai sempre da sessão. `getAuthContext()`
-(`src/lib/auth/session.ts`) valida o token com `supabase.auth.getUser()` — que confere a
-assinatura no servidor de Auth, e não apenas decodifica o JWT — e lê a `role` **do banco**,
-não do token. Sobre ele, quatro guardas em `src/lib/auth/guards.ts`:
-
-| Guarda                | Uso                          | Recusa com |
-| --------------------- | ---------------------------- | ---------- |
-| `requireAuth`         | rotas de qualquer logado     | 401        |
-| `requirePersonal`     | `/api/personal/**`           | 401 / 403  |
-| `requireAluno`        | `/api/aluno/**`              | 401 / 403  |
-| `loadAccessibleAluno` | recursos de um aluno         | 404        |
-
-Toda consulta a um recurso carrega o dono no `where` (`{ id, personalId }`,
-`{ id, alunoId }`), então um id de terceiro simplesmente não casa. Recurso que existe mas
-**não é seu responde 404, não 403** — 403 confirmaria a existência do dado alheio.
-
-As páginas (`/personal/**`, `/aluno/**`) são protegidas de novo no `proxy.ts`, que redireciona
-quem não tem a role. As rotas de API não confiam nisso: cada uma aplica a própria guarda.
-
-### O que foi testado
-
-`tests/seguranca-http.test.ts` (30 testes) executa os ataques contra o servidor real, em vez
-de apenas reler o código. Dois Personals com dados espelhados e dois alunos do mesmo Personal:
-
-- **Sem autenticação** — 40 endpoints protegidos, todos 401, sem vazar dados no corpo.
-- **Aluno em endpoint administrativo** — 26 rotas `/api/personal/**`, todas 403.
-- **Personal em endpoint do aluno** — 15 rotas `/api/aluno/**`, todas 403.
-- **Aluno acessando outro aluno** — ficha, execução, agendamento, perfil e notificação do
-  colega: 404 em todas; as listagens só trazem o que é dele.
-- **Personal acessando outro Personal** — 8 leituras e 21 escritas por id (treino, item de
-  treino, exercício, programação, dia da programação, avaliação, feedback, agendamento,
-  bloqueio, faixa de horário): 404 em todas, com verificação no banco de que nada mudou, e
-  controle positivo de que o dono continua acessando.
-- **Mass assignment** — o aluno tentando mudar o próprio `personalId`, `status` e e-mail pelo
-  perfil; o Personal tentando criar recursos para aluno alheio, transferir um treino próprio
-  para esse aluno ou usar exercício da biblioteca de outro. Todos barrados (os schemas Zod são
-  listas de permissão: campo não declarado é descartado).
-- **Sessão e cabeçalhos** — flags do cookie, ausência de CORS, invalidação no logout e
-  mensagem idêntica no login e na recuperação de senha para e-mail existente e inexistente.
-
-**Nenhuma falha de IDOR/BOLA foi encontrada** nos 58 endpoints.
-
-### Correções aplicadas
-
-| Achado | Risco | Correção |
-| --- | --- | --- |
-| Cookie de sessão sem `HttpOnly`/`Secure` — ele guarda access **e** refresh token, então qualquer XSS viraria tomada de conta duradoura | Alto | `src/lib/supabase/cookies.ts` marca `HttpOnly`, `SameSite=lax` e `Secure` (produção). Removido o `createBrowserClient`, que não era usado e não leria mais a sessão |
-| Senha temporária do aluno com 32 bits (`Pulse` + 8 hex) | Médio | 12 caracteres sorteados sem viés com `randomInt` (~59 bits), em grupos legíveis para ditar |
-| Sem cabeçalhos de segurança | Médio | `next.config.ts`: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security` e CSP (`frame-ancestors`, `base-uri`, `form-action`, `object-src`) |
-| Resposta de API podia ser guardada em cache compartilhado | Baixo | `Cache-Control: private, no-store` em `/api/:path*` |
-| Caminho da foto no Storage derivável do id do aluno (bucket público) | Baixo | Sufixo aleatório no nome do arquivo |
-
-### Verificado sem necessidade de mudança
-
-- **CORS** — nenhuma origem liberada; sem `Access-Control-Allow-Origin`, resposta de API não é
-  legível por outro site. Com `SameSite=lax`, requisição de escrita cross-site não leva cookie.
-- **Senhas** — hash a cargo do Supabase Auth (bcrypt); mínimo de 8 caracteres; a aplicação
-  nunca vê nem guarda a senha. Login e recuperação respondem igual para e-mail existente e
-  inexistente.
-- **Sessão** — access token de 1h com refresh; `signOut()` revoga no servidor (testado).
-- **Upload** — lista de permissão de MIME (JPG/PNG/WebP, sem SVG), 2 MB, limites repetidos no
-  bucket.
-- **Variáveis de ambiente** — `.env*` fora do git; `SUPABASE_SERVICE_ROLE_KEY` só em
-  `src/lib/supabase/admin.ts` (com `server-only`), no seed e nos testes; no cliente, apenas a
-  URL e a chave anônima, ambas públicas por natureza.
-- **Erros** — mensagens genéricas para o usuário; detalhe só no log do servidor.
-
-### Pontos em aberto (decisão de produto)
-
-- **Buckets de imagem são públicos.** As URLs não são mais deriváveis, mas quem tiver o link vê
-  a imagem sem autenticação. Fechar o bucket exige URLs assinadas com validade — mudança de
-  arquitetura, não aplicada aqui.
-- **Sem rate limiting próprio no login.** Vale o limite embutido do Supabase Auth. Um limite por
-  IP na borda (ex.: Vercel WAF) é recomendável em produção.
-- **`proxy.ts` decide a role das páginas pelo `app_metadata` do token**, que pode ficar
-  desatualizado se a role mudar no banco. As rotas de API leem a role do banco, então o dado em
-  si continua protegido.
-
-## Perfil e configurações (Fase 17)
-
-**Aluno** (`/aluno/perfil`): foto, nome, telefone, data de nascimento, altura e objetivo. O e-mail
-aparece somente leitura — ele identifica a conta e é gerenciado pelo Personal.
-
-**Personal** (`/personal/perfil`): a página abre com a foto, o resumo (alunos, ativos, treinos) e
-duas abas:
-
-- **Meus dados** — foto, nome, e-mail (somente leitura), telefone, CREF e uma bio curta.
-- **Agenda e regras** — os horários de trabalho (as mesmas faixas da agenda) e as regras de
-  agendamento: **duração padrão do treino**, **tempo mínimo** e **tempo máximo** para o aluno
-  marcar, **prazo de cancelamento**, limite de marcações por aluno e os interruptores de "aluno pode
-  marcar sozinho" e "confirmar automaticamente". As regras salvam sozinhas ao sair do campo.
-
-| Endpoint | O que faz |
-| -------- | --------- |
-| `GET/PATCH /api/personal/perfil` | Dados do Personal (nome, telefone, CREF, bio) + resumo |
-| `GET/PATCH /api/aluno/perfil` | Dados do aluno |
-| `POST /api/perfil/foto` | Foto do próprio usuário (serve aos dois papéis) |
-| `GET/PUT /api/personal/agenda/regras` | Regras de agendamento, incluindo a duração padrão |
-
-Decisões:
-
-- **Validação nos dois lados, com a mesma regra.** O schema Zod do servidor
-  (`src/lib/validations/perfil.ts` e `.../agenda.ts`) tem um espelho no formulário, então o erro
-  aparece no campo antes da requisição sair — e continua barrado se alguém chamar a API direto.
-  Telefone aceita só dígitos e `( ) + -`; altura fica entre 80 e 260 cm; duração entre 15 e 240 min;
-  antecedência e cancelamento até 168 h; janela até 180 dias.
-- **A foto sai da sessão, não da URL**: `POST /api/perfil/foto` grava em `avatars/<papel>/<userId>`
-  e atualiza o próprio usuário — não há como trocar a foto de outra pessoa.
-- **Um editor, dois lugares**: `HorariosDeTrabalhoEditor` e `RegrasDaAgendaEditor`
-  (`src/components/personal/agenda/configuracoes.tsx`) são usados tanto pela página de perfil quanto
-  pelo modal de configurações da agenda — a lógica mora em um lugar só.
-
-Cobertura: `tests/perfil-http.test.ts` (11 testes) — autorização, leitura e edição do perfil do
-Personal com resumo, validações recusadas, isolamento entre Personals, regras de agenda (incluindo a
-duração padrão e a recusa de valores fora do intervalo), edição do perfil do aluno e o upload de
-foto (sem sessão, sem arquivo e formato inválido).
-
-## Notificações internas (Fase 16)
-
-A campainha da barra superior mostra o **contador de não lidas**, a lista das últimas 20
-notificações, **marcar uma** como lida e **marcar todas**. Vale para os dois papéis; cada usuário só
-enxerga e marca as próprias (as de outro respondem 404).
-
-| Quem recebe | Evento | Disparado em |
-| ----------- | ------ | ------------ |
-| Aluno | `NOVO_TREINO` | o Personal cria um treino |
-| Aluno | `TREINO_ALTERADO` | o Personal edita a ficha |
-| Aluno | `NOVA_AVALIACAO` | o Personal registra uma bioimpedância |
-| Aluno | `NOVO_FEEDBACK` | o Personal escreve um comentário |
-| Aluno | `AGENDAMENTO_CONFIRMADO` | o Personal marca ou confirma um horário |
-| Aluno | `AGENDAMENTO_CANCELADO` | o Personal cancela |
-| Aluno | `AGENDAMENTO_REAGENDADO` | o Personal move o horário |
-| Personal | `NOVO_AGENDAMENTO` | o aluno marca sozinho |
-| Personal | `AGENDAMENTO_CANCELADO` | o aluno cancela |
-| Personal | `AGENDAMENTO_REAGENDADO` | o aluno remarca |
-
-### Arquitetura: evento → mensagem → canais
-
-```
-src/lib/notificacoes/
-  eventos.ts   O catálogo de eventos e o texto de cada um (título, mensagem, link)
-  canais.ts    Os canais de entrega: INTERNO (implementado), EMAIL/WHATSAPP/PUSH (declarados)
-  enviar.ts    O despachante: resolve o destinatário e entrega em cada canal habilitado
-  queries.ts   Leitura e marcações (a campainha)
-```
-
-Quem executa a ação **só descreve o evento** — `notificar({ tipo: "NOVO_TREINO", alunoId, treino })`.
-Daí para frente é com o despachante: ele descobre o usuário a partir do perfil, monta a mensagem
-pelo catálogo e entrega em todos os canais habilitados.
-
-- **O texto mora em um lugar só** (`eventos.ts`), então o dia em que o e-mail existir ele sai igual
-  ao que aparece no app.
-- **Nenhuma falha de entrega derruba a ação**: erro de canal vira log. Ninguém perde um treino
-  porque a notificação falhou.
-- **Adicionar um canal** é implementar `entregar` e ligar `habilitado` em `canais.ts` — nenhuma
-  query precisa mudar. E-mail, WhatsApp e push já estão declarados com `habilitado: false`,
-  marcando onde a integração entra. **Nada externo é chamado hoje.**
-
-Cobertura: `tests/notificacoes-http.test.ts` (13 testes) — um caso por evento (aluno e Personal),
-contador, marcar uma, marcar todas, isolamento entre usuários, autenticação, e dois testes da
-arquitetura: só o canal interno habilitado e uma entrega impossível que não estoura.
-
-## Feedback do Personal (Fase 15)
-
-O Personal escreve comentários na aba **Feedbacks** da ficha do aluno; o aluno lê em
-**`/aluno/feedback`**, com o comentário mais recente em destaque e o histórico logo abaixo.
-
-| Endpoint | O que faz |
-| -------- | --------- |
-| `GET /api/personal/feedbacks?alunoId=&q=` | Comentários do Personal, com filtro por aluno e busca no texto |
-| `POST /api/personal/feedbacks` | Escreve o comentário e notifica o aluno |
-| `PATCH /api/personal/feedbacks/[id]` | Corrige o texto |
-| `DELETE /api/personal/feedbacks/[id]` | Exclui |
-| `GET /api/aluno/feedbacks` | Comentários do próprio aluno + quantos não lidos |
-| `POST /api/aluno/feedbacks/lidos` | Marca como lidos ao abrir a tela |
-| `GET /api/notificacoes` | Notificações internas do usuário (Personal ou aluno) |
-| `PATCH /api/notificacoes/[id]` · `POST /api/notificacoes/lidas` | Marca uma ou todas como lidas |
-
-Cada feedback guarda **autor** (o Personal que escreveu), **aluno**, **data**, **texto** e o
-**status de leitura** (`lidoEm`, nulo enquanto o aluno não abriu). Opcionalmente fica preso a uma
-avaliação do aluno — útil para comentar uma bioimpedância específica.
-
-- **Só para os próprios alunos**: escrever para aluno de outro Personal responde **404**, e
-  vincular uma avaliação que não é daquele aluno responde 400. Editar ou excluir comentário alheio
-  também dá 404.
-- **Leitura de verdade**: abrir a tela do aluno marca os comentários como lidos, e o Personal passa
-  a ver "Lido" na lista (com um contador de não lidos no topo). Corrigir o texto não reabre o
-  status.
-- **Notificação interna**: criar um feedback grava uma `Notificacao` do tipo `NOVO_FEEDBACK` para o
-  usuário do aluno, com link para `/aluno/feedback`. Ela aparece na **campainha da barra superior**,
-  que mostra o marcador de não lidas, a lista das últimas 20 e o "marcar lidas". Marcar os feedbacks
-  como lidos silencia junto as notificações de feedback — o sino não continua avisando algo que já
-  foi lido. Cada usuário só lê e marca as próprias (404 para as de outro).
-
-Cobertura: `tests/feedbacks-http.test.ts` (18 testes) — autorização, criação com notificação,
-vínculo com avaliação, validações, listagem com filtro e busca, o que o aluno vê, marcar como lido
-(refletindo no Personal e no sino), edição, exclusão e o isolamento entre Personals e entre alunos.
-
-## Avaliações de bioimpedância (Fase 14)
-
-O Personal registra as medidas em **`/personal/avaliacoes`** (ou direto na aba **Bioimpedância** da
-ficha do aluno, que é o mesmo painel travado em um aluno). O aluno acompanha em **Evolução → Corpo**.
-
-| Endpoint | O que faz |
-| -------- | --------- |
-| `GET /api/personal/avaliacoes?alunoId=&q=` | Lista as avaliações do Personal, com filtro por aluno e busca por nome |
-| `POST /api/personal/avaliacoes` | Registra uma avaliação |
-| `GET /api/personal/avaliacoes/[id]` | Abre uma avaliação |
-| `PATCH /api/personal/avaliacoes/[id]` | Corrige medidas, data ou observações |
-| `DELETE /api/personal/avaliacoes/[id]` | Exclui |
-
-Campos gravados (todos opcionais, exceto o aluno): data, peso, IMC, percentual de gordura, massa de
-gordura, massa muscular, massa magra, massa óssea, água corporal em % e em litros, gordura visceral,
-metabolismo basal, idade metabólica, circunferências (peito, cintura, quadril, braço, coxa,
-panturrilha) e observações.
-
-**Nada é obrigatório porque cada balança mede um conjunto diferente.** O formulário manda em branco
-o que não foi medido, e o schema converte isso em `null` — o campo fica *sem valor*, nunca zero. Na
-tela, só aparecem as medidas que existem: uma avaliação registrada apenas com peso mostra só peso.
-
-Outras decisões:
-
-- Cada avaliação carrega a **variação** de peso, gordura e músculo em relação à anterior **do mesmo
-  aluno** (verde quando a mudança vai na direção do objetivo, âmbar quando não).
-- **Corrigir é editar**: o `PATCH` altera só os campos enviados, e mandar `null` limpa um campo.
-  Excluir é para o registro que não deveria existir — a tela avisa que ele sai também dos gráficos.
-- Valores absurdos são recusados (peso 900 kg, gordura 150%), com a mensagem no campo.
-- Isolamento: avaliação ou aluno de outro Personal responde **404**, e o aluno só enxerga as próprias.
-
-### Evolução do aluno
-
-Em `/aluno/evolucao`, a aba **Corpo** mostra peso, gordura, **massa muscular** e IMC em destaque, o
-gráfico da métrica escolhida (peso, gordura, massa muscular, IMC, massa magra ou água) e o histórico
-completo com tudo o que foi medido, incluindo as circunferências.
-
-**Os gráficos nunca inventam dados**: cada ponto é uma avaliação registrada. Métrica sem nenhum
-registro não aparece no seletor, e sem avaliação nenhuma a aba inteira vira um estado vazio
-explicando que os números aparecem depois da primeira bioimpedância.
-
-Cobertura: `tests/avaliacoes-http.test.ts` (17 testes) — autorização, criação com poucos campos,
-completa e sem nenhuma medida, recusa de valores absurdos, listagem com filtro e busca, correção
-(inclusive limpar campo), exclusão, isolamento entre Personals e o que o aluno recebe na evolução.
-
-## Agendamento pelo aluno (Fase 13)
-
-Duas telas no app do aluno: **`/aluno/agenda`** (Minha agenda) e
-**`/aluno/agenda/agendar`** (Agendar treino), com as regras que o Personal configurou.
-
-**Agendar treino** em três passos: escolher o dia numa faixa com a contagem de horários livres de
-cada um (dias sem vaga vêm desabilitados), escolher o horário entre os que aparecem e confirmar,
-com um resumo do que será marcado. Só entram na lista horários **realmente disponíveis** — e o
-servidor revalida tudo na gravação, então passar por cima da tela não adianta.
-
-**Minha agenda** abre com o **próximo treino** em destaque (data, horário, status e as ações),
-seguido dos demais horários marcados e do histórico. Cancelar e reagendar aparecem apenas enquanto
-o prazo do Personal permite; passado o prazo, a tela explica que é preciso falar com ele.
-
-| Endpoint | O que faz |
-| -------- | --------- |
-| `GET /api/aluno/agenda/dias` | Janela de dias com os livres de cada um, as regras e quantos atendimentos o aluno já tem |
-| `GET /api/aluno/agenda/horarios?data=` | Horários que o aluno pode marcar naquela data (ou o motivo de não haver nenhum) |
-| `POST /api/aluno/agendamentos` | Marca o horário |
-| `PATCH /api/aluno/agendamentos/[id]` | Cancela (`status: "CANCELADO"`) ou reagenda |
-| `GET/PUT /api/personal/agenda/regras` | O Personal lê e ajusta as regras |
-
-### Regras configuradas pelo Personal
-
-Ficam em `ConfiguracaoAgenda` (um registro por Personal; sem registro valem os padrões de
-`src/lib/agenda/regras.ts`) e são editadas em **Agenda → Configurações**:
-
-| Regra | O que faz | Padrão |
-| ----- | --------- | ------ |
-| `permiteAgendamento` | Se desligado, só o Personal marca | ligado |
-| `antecedenciaMinHoras` | Antecedência mínima para marcar | 12h |
-| `janelaDias` | Até quantos dias à frente dá para marcar | 30 |
-| `cancelamentoMinHoras` | Prazo para o aluno cancelar ou reagendar sozinho | 12h |
-| `maxAtivosPorAluno` | Atendimentos futuros por aluno | 3 |
-| `confirmacaoAutomatica` | Se ligado, o horário do aluno já nasce confirmado | desligado |
-
-O que é recusado (sempre com 409 e a explicação):
-
-- **Horário passado** e horário dentro da antecedência mínima.
-- **Data fora da janela** liberada.
-- **Horário bloqueado** pelo Personal, ou fora das faixas de trabalho.
-- **Conflito**: qualquer sobreposição com atendimento ativo — nunca dois alunos no mesmo horário.
-- **Limite de marcações** atingido; e agendamento desligado pelo Personal.
-- **Cancelar ou reagendar fora do prazo** — inclusive quando o aluno chama a API direto.
-
-Um aluno só enxerga e altera os próprios agendamentos (o `where` leva o `alunoId` da sessão, então
-o id de outro responde 404), e o aluno sem Personal vinculado recebe 409 com a explicação.
-
-Correção que veio junto: a data do agendamento é gravada à meia-noite, então a separação entre
-"próximos" e "histórico" passou a usar o **fim do atendimento**, e não o campo `data` — antes, tudo
-que era de hoje caía no histórico.
-
-Cobertura: `tests/agendamento-aluno-http.test.ts` (21 testes) — autorização, horários oferecidos,
-passado, antecedência, janela, bloqueio, limite, agendamento desligado, confirmação automática,
-dois alunos no mesmo horário, reagendamento, cancelamento dentro e fora do prazo e o isolamento
-entre alunos.
-
-## Agenda do Personal (Fase 12)
-
-`/personal/agenda` em três vistas — **dia**, **semana** e **mês** — sobre a mesma resposta da API,
-com navegação por período e o resumo do que está marcado, confirmado, a confirmar e livre.
-
-| Endpoint | O que faz |
-| -------- | --------- |
-| `GET /api/personal/agenda?vista=dia\|semana\|mes&data=` | A agenda do período: atendimentos, bloqueios, horários livres e as faixas de trabalho de cada dia |
-| `GET /api/personal/agenda/horarios?data=` | Horários livres de um dia (alimenta o seletor de agendamento) |
-| `GET/POST /api/personal/agenda/trabalho` | Configuração dos horários de trabalho |
-| `DELETE /api/personal/agenda/trabalho/[id]` | Remove uma faixa |
-| `POST /api/personal/agenda/bloqueios` | Bloqueia um horário ou o dia inteiro |
-| `DELETE /api/personal/agenda/bloqueios/[id]` | Libera o horário |
-| `POST /api/personal/agendamentos` | Marca um atendimento |
-| `PATCH /api/personal/agendamentos/[id]` | Confirma, cancela, marca como concluído ou reagenda |
-
-**Horários de trabalho** são faixas por dia da semana, com a duração de cada atendimento — o mesmo
-dia aceita mais de uma faixa (manhã e tarde):
-
-```
-Segunda   06:00–12:00 · 60min
-          14:00–20:00 · 60min
-Terça     06:00–12:00 · 60min
-          14:00–20:00 · 60min
-```
-
-Delas o sistema **gera os horários disponíveis**: cada faixa é quebrada em atendimentos da duração
-configurada (uma sobra menor que a duração é descartada), e some da lista o que já está ocupado ou
-bloqueado. A tela só oferece horários gerados assim — não há campo livre de hora para agendar.
-
-Regras de conflito (validadas no servidor, não só na tela):
-
-- **Dois alunos nunca ocupam o mesmo horário.** Qualquer sobreposição com um atendimento ativo
-  (`[início, fim)` que se cruzam) responde **409** — inclusive sobreposição parcial. Encostar um
-  horário no outro (08:00 logo após 07:00–08:00) é permitido.
-- **Horário bloqueado não aceita agendamento** (409). Bloqueio pode ser uma faixa ou o dia inteiro;
-  liberar é apagá-lo.
-- Cancelar **devolve o horário** para a lista de livres; reativar um cancelado revalida o conflito.
-- Reagendar revalida data e hora ignorando o próprio agendamento; mudar de horário sem informar
-  status marca como **REAGENDADO**.
-- Cada Personal só enxerga e altera a própria agenda; agendar aluno de outro profissional responde
-  404, e mexer no agendamento alheio também.
-
-O status ganhou **CONFIRMADO** (`AGENDADO` = à espera do aceite): o fluxo é marcar → confirmar →
-marcar como concluído (`REALIZADO`), com `CANCELADO` a qualquer momento. Rótulos e cores ficam em
-`src/lib/agenda/status.ts`, compartilhados com a agenda do aluno e o dashboard.
-
-`agendamentos.data` guarda a meia-noite **local** do dia; hora fica nos campos de texto `HH:MM`, e
-toda a aritmética de horário acontece em minutos (`src/lib/agenda/horarios.ts`).
-
-Cobertura: `tests/agenda-http.test.ts` (26 testes) — autorização, faixas de trabalho (inclusive
-sobreposição recusada), geração dos horários, conflito total e parcial, bloqueio/liberação, dia
-inteiro bloqueado, confirmar/concluir/cancelar/reagendar, as três vistas e o isolamento entre
-Personals.
-
-## Evolução dos treinos (Fase 11)
-
-`/aluno/evolucao` agora tem duas abas: **Treinos** (o que o aluno vem fazendo) e **Corpo** (a
-bioimpedância, que já existia). O histórico sessão a sessão continua em `/aluno/historico`.
-
-Na aba Treinos, tudo calculado a partir do que foi realmente registrado
-(`GET /api/aluno/progresso`):
-
-- **Treinos concluídos**, **sequência atual** (com a melhor sequência quando ela é maior),
-  **frequência** (média de treinos por semana desde o primeiro registro) e **últimas 4 semanas**
-  no formato "8 de 20 programados", comparando o feito com o que a programação previa.
-- **Frequência semanal**: barras das últimas 12 semanas, com um traço marcando quantos treinos
-  estavam programados em cada uma.
-- **Evolução por exercício**: escolhendo o exercício, aparece a curva de carga e a progressão em
-  texto - `40 kg › 42,5 kg › 45 kg › … › 57,5 kg` -, mais a variação da primeira para a última
-  sessão, a melhor carga já registrada e a lista de datas com séries, repetições e carga.
-
-Decisões que valem registro:
-
-- **Nada é inventado.** Um exercício só entra no gráfico com **duas ou mais** sessões de carga
-  numérica; com menos, ele aparece na lista "outros exercícios registrados", sem curva. Sem nenhum
-  treino concluído, a aba inteira vira um estado vazio explicando que os números aparecem conforme
-  o aluno treinar.
-- **Carga é texto livre** na ficha ("40kg", "peso corporal", "20 lb"), porque é assim que o Personal
-  escreve. `src/lib/treinos/carga.ts` extrai o número quando existe (convertendo libras) e devolve
-  `null` quando não existe - é o que separa o que dá gráfico do que não dá.
-- **Sequência** conta dias de treino seguidos: descanso e dias sem programação não quebram (não
-  havia treino a fazer) e o dia de hoje ainda não treinado também não, porque o dia não acabou.
-- Duas execuções do mesmo exercício no mesmo dia viram um ponto só - o de maior carga.
-- O agrupamento é pelo exercício da biblioteca; se ele for excluído, o histórico mantém o nome
-  registrado e a série continua inteira.
-
-Cobertura: `tests/progresso-http.test.ts` (9 testes) - progressão de carga em ordem, exercício sem
-carga numérica fora do gráfico, contagem de concluídos, frequência semanal, sequência atual e
-melhor, previsto x realizado, isolamento entre alunos e a resposta zerada de quem ainda não treinou.
-
-## Execução do treino (Fase 10)
-
-"Começar treino" abre `/aluno/treinos/[id]/sessao`: uma tela por exercício, feita para o celular
-na mão entre as séries.
-
-O que ela mostra e faz:
-
-- **Topo fixo** com o nome do treino, o progresso (`3 / 8 exercícios`), a barra de andamento e o
-  cronômetro da sessão; ao lado, a trilha numerada dos exercícios (feito / atual / pendente), que
-  também serve para pular direto para um deles.
-- **Exercício atual** com imagem (ou o link do vídeo, quando o Personal cadastrou), grupo muscular,
-  a prescrição em destaque - séries, repetições, carga e descanso - e as **observações do Personal**.
-- **Séries**: um botão grande por série; marcar uma série dispara o descanso automaticamente
-  (exceto na última, que emenda no próximo exercício).
-- **Carga usada / repetições feitas**: campos já preenchidos com o prescrito, para o aluno corrigir
-  quando treinar diferente do combinado.
-- **Concluir exercício** marca o exercício, atualiza o progresso, avança e inicia o descanso.
-- **Descanso**: contagem regressiva com barra, `+15s` e *Pular*, com vibração ao terminar. O fim é
-  agendado por `setTimeout` (e não pela contagem), então continua correto se o navegador engasgar o
-  intervalo com a tela bloqueada.
-- **Resumo** antes de fechar: tempo, exercícios, séries e a lista do que foi feito, mais um campo de
-  observações. Ao confirmar, aparece **"Treino concluído!"** com o resumo da sessão.
-
-O andamento fica no `localStorage` (`pulse:sessao:<treinoId>`): recarregar a página no meio do
-treino não perde nada. Uma sessão parada há mais de 6 horas é descartada em vez de retomada.
-
-O que vai para o banco (`POST /api/aluno/treinos/[id]/execucoes`):
-
-| Onde | O que guarda |
-| ---- | ------------ |
-| `historico_treinos` | data, treino, aluno, se foi concluído, observações e **duração** da sessão |
-| `historico_exercicios` | um registro por exercício: ordem, nome, grupo muscular, **séries, repetições, carga**, se foi concluído |
-
-Os itens são um **retrato do momento**: nome e grupo muscular são copiados da ficha na hora de
-gravar, então renomear ou apagar um exercício depois não reescreve o passado (o vínculo com a
-biblioteca vira nulo, o registro permanece). Séries, repetições e carga vêm do que o aluno fez,
-caindo para o prescrito quando ele não ajusta nada; enviar um exercício que não pertence à ficha
-responde 400, e a ficha de outro aluno, 404.
-
-O histórico fica em **`/aluno/historico`** (`GET /api/aluno/historico`): cada sessão com data,
-duração, exercícios concluídos e séries, expansível para ver exercício por exercício com a carga
-usada. As últimas sessões também aparecem em `/aluno/treinos`.
-
-Cobertura: `tests/execucao-http.test.ts` (11 testes) - autorização, registro completo com itens,
-recusa de exercício de outra ficha, ficha inteira quando não vêm itens, validações, permanência do
-retrato após a ficha mudar e o isolamento do histórico entre alunos.
-
-## Área do aluno (Fase 9)
-
-O app que o aluno usa: `/aluno` (início), `/aluno/treinos` (fichas e execução), `/aluno/agenda`,
-`/aluno/evolucao`, `/aluno/feedback` e `/aluno/perfil`. No desktop a navegação é a sidebar; no
-mobile, a barra inferior com os seis itens.
-
-O início abre com **"Olá, [Nome] 👋"** e mostra, nesta ordem:
-
-- **Treino de hoje** — nome da ficha, quantidade de exercícios, duração estimada e o botão
-  *Começar treino* (mais o horário, quando há atendimento marcado para a data). Sem treino no dia,
-  o card explica se é descanso ou se ainda não há programação.
-- **Próximo treino** — a próxima data com treino previsto, o horário marcado (ou "sem horário") e
-  um resumo da ficha.
-- **Evolução** — os números da última avaliação com a variação em relação à anterior.
-- **Último feedback** — o comentário mais recente do Personal.
-
-| Endpoint | O que faz |
-| -------- | --------- |
-| `GET /api/aluno/dashboard` | Tudo do início: treino de hoje, próximo, resumo, evolução e último feedback |
-| `GET /api/aluno/treinos` | Fichas ativas do aluno + histórico recente de execuções |
-| `GET /api/aluno/treinos/[id]` | Ficha completa, com séries, repetições, carga e descanso |
-| `POST /api/aluno/treinos/[id]/execucoes` | Fecha a sessão de treino (ver [Execução do treino](#execução-do-treino-fase-10)) |
-| `GET /api/aluno/historico` | Histórico de execuções, com o que foi feito em cada uma |
-| `GET /api/aluno/agenda` | Agendamentos próximos e anteriores (ver [Agendamento pelo aluno](#agendamento-pelo-aluno-fase-13)) |
-| `GET /api/aluno/evolucao` | Avaliações em ordem cronológica + variações por métrica |
-| `GET /api/aluno/progresso` | Frequência, sequência e evolução de carga por exercício |
-| `GET /api/aluno/feedbacks` | Comentários do Personal (ver [Feedback do Personal](#feedback-do-personal-fase-15)) |
-| `GET/PATCH /api/aluno/perfil` | Dados do próprio aluno (nome, telefone, nascimento, altura, objetivo) |
-
-Como o isolamento é garantido:
-
-- **Nenhuma rota de `/api/aluno/*` aceita id de aluno.** O `alunoId` sai sempre da sessão
-  (`requireAluno` → `ctx.alunoProfileId`), então não existe parâmetro para trocar e pedir os dados
-  de outra pessoa.
-- Consultas por id de outro recurso (uma ficha, por exemplo) levam `alunoId` no `where`: o treino
-  de outro aluno responde **404**, e o mesmo vale para registrar execução nele.
-- O `PATCH /api/aluno/perfil` só aceita os campos do próprio cadastro. E-mail, status e vínculo com
-  o Personal ficam de fora do schema - enviá-los não muda nada.
-- Um Personal recebe **403** em `/api/aluno/*` (assim como o aluno continua recebendo 403 em
-  `/api/personal/*`).
-
-Detalhes de implementação:
-
-- **Duração estimada** (`src/lib/treinos/duracao.ts`): cada série custa ~45s de execução mais o
-  descanso configurado (60s quando não há), somados 5 min de aquecimento; o resultado é arredondado
-  para múltiplos de 5, porque a estimativa não tem precisão de minuto.
-- **Treino de hoje / próximo treino** saem da mesma resolução da programação usada pelo Personal
-  (`treinoPrevistoEm` / `proximoTreinoDoAluno`), com o horário vindo do agendamento daquela data.
-- **Sequência**: dias seguidos com treino previsto *e* executado. Descanso e dias sem programação
-  não quebram a contagem (não havia treino a fazer); o dia de hoje ainda não executado também não,
-  porque o dia não acabou.
-- **Gráfico de evolução**: SVG escrito à mão (`grafico-evolucao.tsx`), sem biblioteca de charts -
-  escala com o container e respeita os tokens de tema.
-- Cobertura: `tests/aluno-http.test.ts` (23 testes) cobre autorização, o conteúdo do dashboard,
-  execução de treino, agenda, evolução, feedbacks e edição de perfil - sempre com dois alunos do
-  mesmo Personal, para provar que um não enxerga nada do outro.
-
-## Programação de treinos (Fase 8)
-
-Define **qual treino o aluno faz em cada dia da semana**, dentro de um período. Fica na aba
-**Treinos** da ficha do aluno (`/personal/alunos/[id]`), com a rotina semanal e o calendário das
-próximas 4 semanas.
-
-| Endpoint | O que faz |
-| -------- | --------- |
-| `GET /api/personal/programacoes?alunoId=` | Programações do aluno (histórico) + a vigente hoje |
-| `POST /api/personal/programacoes` | Cria uma programação (opcionalmente já com os dias) |
-| `GET/PATCH/DELETE /api/personal/programacoes/[id]` | Detalhe, edição de nome/período e exclusão |
-| `PUT /api/personal/programacoes/[id]/dias/[dia]` | Associa ou troca o treino de um dia |
-| `DELETE /api/personal/programacoes/[id]/dias/[dia]` | Remove o treino do dia (vira descanso) |
-| `GET /api/personal/alunos/[id]/calendario?de=&ate=` | O previsto em cada data do período (padrão: 4 semanas) |
-| `GET /api/personal/alunos/[id]/treino-do-dia?data=` | O previsto em uma data (padrão: hoje) |
-
-Modelo: `Programacao` (aluno + período) tem até 7 `ProgramacaoDia` (`diaSemana` → `treino`). O
-`Treino` **não guarda mais o dia da semana** — a coluna `treinos.diaSemana` foi removida na
-migration `20260905133000_programacao_de_treinos`, que converteu os dias já cadastrados em uma
-"Programação inicial" por aluno.
-
-Regras da resolução (`src/lib/programacoes/queries.ts`, o mesmo código que vai alimentar o
-"Treino de hoje" do aluno):
-
-- **Ausência de linha = descanso.** Um dia sem `ProgramacaoDia` é descanso explícito; uma data fora
-  de qualquer período responde `SEM_PROGRAMACAO` (nada prescrito ainda).
-- **Vale a programação mais recente.** Entre as que cobrem a data, ganha a de maior `dataInicio` —
-  assim uma rotina nova substitui a anterior mesmo que a antiga tenha ficado com um período longo.
-- **Criar uma nova encerra a anterior.** Programações em aberto que alcançam a nova data de início
-  recebem `dataFim` na véspera, para não existirem duas rotinas valendo no mesmo dia.
-- **Datas em UTC puro** (`src/lib/date-utils.ts`): `dataInicio`/`dataFim` são `@db.Date` e as
-  comparações usam `getUTCDay()`, para o fuso do servidor nunca deslocar um treino de dia.
-- **Isolamento**: programar aluno de outro Personal responde 404, e um treino só pode ser prescrito
-  para o aluno dono da ficha (usar o treino de outro aluno também responde 404).
-- Consultas em lote (`proximosTreinosDeAlunos`, `treinosPrevistosPara`) resolvem vários alunos/datas
-  em uma única query — é assim que o dashboard e a listagem de alunos mostram o "próximo treino"
-  sem N+1.
-
-Cobertura: `tests/programacao-http.test.ts` (25 testes) exercita autorização, montagem da semana,
-troca e remoção de dias, resolução por data, repetição na semana seguinte, virada de mês, edição de
-período e a troca de programação ao longo do tempo.
-
-## Treinos (Fase 7)
-
-Montagem de fichas em `/personal/treinos`, com editor em `/personal/treinos/[id]`. Cada treino é
-**vinculado a um aluno** e reúne exercícios da biblioteca com séries, repetições, carga, descanso
-e observações. Em que dia da semana cada ficha cai é decidido na [programação](#programação-de-treinos-fase-8).
-
-| Endpoint | O que faz |
-| -------- | --------- |
-| `GET/POST /api/personal/treinos` | Lista (filtros por aluno, status e busca) e cria |
-| `GET/PATCH/DELETE /api/personal/treinos/[id]` | Detalhe, edição (inclui desativar) e exclusão |
-| `POST /api/personal/treinos/[id]/duplicar` | Duplica com todos os exercícios, para o mesmo aluno ou outro |
-| `POST /api/personal/treinos/[id]/exercicios` | Adiciona um exercício ao final da ficha |
-| `PATCH/DELETE .../exercicios/[itemId]` | Edita os parâmetros ou remove (renumerando os demais) |
-| `PUT .../exercicios/ordem` | Regrava a ordem dos exercícios |
-
-Pontos de atenção:
-
-- **Isolamento entre Personals**: criar, transferir ou duplicar um treino para aluno de outro
-  profissional responde **404**, assim como usar um exercício da biblioteca alheia. Tudo é
-  verificado no servidor antes de gravar.
-- **Reordenação em duas fases**: `treino_exercicios` tem `UNIQUE (treinoId, ordem)` e o Postgres
-  valida a cada linha atualizada — gravar as posições finais direto colidiria no meio do caminho.
-  As posições passam primeiro por valores negativos e depois pelos definitivos, dentro de uma
-  transação. A remoção usa o mesmo mecanismo para manter a numeração sempre 1..n.
-- **Desativar x excluir**: desativar tira o treino de circulação mantendo o histórico; excluir
-  remove a ficha e as execuções registradas dela (a biblioteca de exercícios não é afetada).
-- A aba **Treinos** da ficha do aluno lista os treinos dele e permite criar já com o aluno fixado.
-
-## Biblioteca de exercícios (Fase 6)
-
-CRUD da biblioteca em `/personal/exercicios`: cadastrar, editar, buscar (nome/descrição), filtrar
-por grupo muscular e por status, arquivar/restaurar e excluir. Cada exercício tem nome, grupo
-muscular, descrição de execução, vídeo de referência (URL) e imagem de demonstração.
-
-| Endpoint | O que faz |
-| -------- | --------- |
-| `GET /api/personal/exercicios` | Lista com busca (`q`), filtro (`grupo`, `status`) e ordenação; devolve contagens e os grupos presentes |
-| `POST /api/personal/exercicios` | Cadastra um exercício |
-| `GET/PATCH /api/personal/exercicios/[id]` | Detalhe e edição (inclui arquivar via `ativo`) |
-| `DELETE /api/personal/exercicios/[id]` | Exclui — recusa com **409** se o exercício estiver em algum treino |
-| `POST /api/personal/exercicios/[id]/imagem` | Envia a imagem de demonstração para o Storage |
-
-Decisões que valem registrar:
-
-- **Arquivar em vez de excluir**: a FK de `treino_exercicios` é em cascata, então apagar um
-  exercício em uso o removeria silenciosamente das fichas já montadas. A exclusão só é permitida
-  quando o exercício não está em nenhum treino; caso contrário a API responde 409 e a interface
-  oferece **arquivar** (sai da biblioteca ativa, os treinos continuam intactos).
-- **Nome único por Personal**, ignorando maiúsculas — dois Personals podem ter "Supino reto".
-- **Grupos musculares padronizados** em `src/lib/validations/exercicio.ts`: o banco guarda texto,
-  mas a lista canônica mantém o filtro consistente.
-- **Vídeo é uma URL** (link do YouTube etc.), não upload; a **imagem** é upload real para o bucket
-  `exercicios` do Supabase Storage, feito pelo card depois de salvar o exercício.
-
-## Gerenciamento de alunos (Fase 5)
-
-CRUD completo em `/personal/alunos`, com página de detalhe em
-`/personal/alunos/[id]`. Todos os endpoints exigem sessão + role PERSONAL e filtram pelo
-`personalId` do próprio Personal — acessar um aluno de outro profissional responde **404**
-(e não 403), para não revelar que aquele registro existe.
-
-| Endpoint | O que faz |
-| -------- | --------- |
-| `GET /api/personal/alunos` | Lista com busca (`q` por nome/e-mail), filtro (`status`) e ordenação (`ordenar`); devolve também as contagens para os filtros |
-| `POST /api/personal/alunos` | Cria o aluno (conta no Auth + perfil) já vinculado ao Personal |
-| `GET /api/personal/alunos/[id]` | Detalhe com dados cadastrais e métricas |
-| `PATCH /api/personal/alunos/[id]` | Edita dados e ativa/desativa (`status`) |
-| `POST /api/personal/alunos/[id]/avatar` | Envia a foto para o Supabase Storage |
-
-Decisões que valem registrar:
-
-- **Cadastro pelo Personal**: a conta do aluno é criada com uma **senha temporária** gerada pelo
-  sistema, exibida uma única vez para o Personal repassar. Não há envio de e-mail de convite ainda.
-- **E-mail não é editável**: ele identifica a conta no Supabase Auth; alterá-lo exigiria também
-  atualizar o Auth e revalidar o endereço.
-- **Desativar não apaga nada**: `AlunoProfile.status` vira `INATIVO`; treinos, agenda e avaliações
-  continuam disponíveis e o aluno pode ser reativado. Por isso o card "Alunos ativos" do dashboard
-  passou a contar o status persistido (antes era derivado de atividade recente).
-- **Foto**: upload real para o bucket público `avatars` do Supabase Storage (criado sozinho na
-  primeira vez), aceitando JPG/PNG/WebP de até 2 MB.
-
-## Dashboard do Personal (Fase 4)
-
-`/personal` consome `GET /api/personal/dashboard` (client-side), então os estados de carregamento,
-vazio e erro são reais — com botão de tentar novamente. Todo o conteúdo é filtrado pelo
-`personalId` do Personal autenticado.
-
-O endpoint devolve, em uma única chamada:
-
-| Bloco | Conteúdo |
-| ----- | -------- |
-| `resumo` | total de alunos, alunos ativos, treinos de hoje, próximos agendamentos e avaliações recentes |
-| `agendaDoDia` | agendamentos de hoje com horário, aluno, status e treino do dia |
-| `proximosAgendamentos` | agendamentos a partir de amanhã (cancelados ficam de fora) |
-| `alunosRecentes` | últimos alunos vinculados, com treino programado e última execução |
-| `avaliacoesRecentes` | últimas bioimpedâncias com peso e percentual de gordura |
-
-Definições usadas nas métricas (também exibidas na tela):
-- **Alunos ativos**: com `status = ATIVO` (o Personal controla ao desativar/reativar o aluno).
-- **Treinos de hoje**: treinos ativos programados para o dia da semana atual.
-- **Próximos agendamentos**: futuros e não cancelados, incluindo os de hoje que ainda vão acontecer.
-- **Tipo de treino** de um agendamento: derivado do treino ativo daquele aluno para o dia da semana
-  da sessão (o schema não liga agendamento a treino diretamente).
-
-`npm run db:seed` também cria dados de demonstração (exercícios, treinos, agenda, execução e
-avaliações) para `personal1@teste.com`, para o dashboard ter conteúdo real em desenvolvimento.
-`personal2@teste.com` fica sem dados, o que é útil para ver os estados vazios.
-
-## Fundação visual (Fase 3)
-
-Identidade **Pulse**: neutros grafite levemente frios com verde-elétrico como cor de energia.
-Títulos em Outfit, texto em Geist, raios generosos (14px de base), sombras suaves em camadas e
-microanimações curtas (`active:scale`, elevação no hover, entrada com `fade-up`).
-
-- **Catálogo vivo** em [`/design-system`](http://localhost:3000/design-system): cores, tipografia,
-  botões, badges, campos, avatares, abas, cards, métricas, toasts, modal e todos os estados.
-- **Componentes** em `src/components/ui/`: `Button`, `Input`, `Select`, `Card`, `Badge`, `Avatar`,
-  `Tabs`, `Modal` (bottom sheet no mobile), `Toaster` + helper `toast`, `Spinner`, `LoadingState`,
-  `SkeletonCard`/`SkeletonList`, `EmptyState`, `ErrorState`, `PageHeader`, `StatCard`.
-- **Layout responsivo** em `src/components/layout/`: navegação inferior no mobile (< 768px), rail
-  de ícones no tablet (768-1023px) e sidebar completa no desktop (≥ 1024px).
-- **Tema claro/escuro** via `next-themes`, com todos os tokens definidos nos dois modos.
-- **Estados por rota**: `loading.tsx` (skeletons), `error.tsx` (com retry) e `not-found.tsx`.
-
-Para conferir a responsividade, `npm run screenshots` captura as telas principais em três
-tamanhos de tela e nos dois temas (requer a app rodando; padrão `http://127.0.0.1:3200`).
-
-## Autenticação e autorização (Fase 2)
-
-- **Senhas**: nunca tocadas pela aplicação - o Supabase Auth (GoTrue) faz o hash com bcrypt e
-  guarda só o hash em `auth.users.encrypted_password`.
-- **Sessão**: cookies httpOnly geridos pelo `@supabase/ssr` (`src/lib/supabase/server.ts` nas
-  rotas/páginas, `src/proxy.ts` faz o refresh a cada request).
-- **Role**: gravada em `app_metadata.role` no momento do cadastro (`PERSONAL`/`ALUNO`) - o proxy lê
-  direto do usuário autenticado, sem round-trip ao banco, para redirecionar `/personal` e `/aluno`
-  por role.
-- **Ownership**: `src/lib/auth/guards.ts` centraliza as regras - um Aluno só acessa o próprio
-  `AlunoProfile`; um Personal só acessa Alunos com `personalId` igual ao seu próprio perfil;
-  endpoints administrativos (`/api/personal/**`) exigem `requirePersonal()`. Acesso negado a um
-  aluno específico responde `404` (não `403`), para não revelar a terceiros que aquele aluno
-  existe.
-- **Recuperação de senha**: `resetPasswordForEmail` (PKCE) → e-mail com link → `/auth/callback`
-  troca o código pela sessão → `/redefinir-senha` chama `updateUser({ password })`. Em dev, os
-  e-mails caem no Mailpit (`http://127.0.0.1:54324`), não são enviados de verdade.
