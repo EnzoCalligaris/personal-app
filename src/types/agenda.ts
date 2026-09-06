@@ -84,4 +84,6 @@ export type RegrasAgendamento = {
   cancelamentoMinHoras: number;
   maxAtivosPorAluno: number;
   confirmacaoAutomatica: boolean;
+  /** Duração sugerida ao criar uma faixa de trabalho. */
+  duracaoPadraoMin: number;
 };

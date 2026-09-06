@@ -7,21 +7,16 @@ import {
   ClockIcon,
   DumbbellIcon,
   LockIcon,
-  PlusIcon,
   XIcon,
 } from "lucide-react";
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { diaSemanaLabel, formatarDiaPorExtenso, iniciais } from "@/lib/format";
+import { formatarDiaPorExtenso, iniciais } from "@/lib/format";
 import { STATUS_AGENDAMENTO } from "@/lib/agenda/status";
 import { toast } from "@/lib/toast";
-import type { DiaSemana } from "@/types";
 import type {
   AgendamentoAgenda,
-  FaixaDeTrabalho,
-  RegrasAgendamento,
-  HorariosDeTrabalhoResponse,
   HorariosLivresResponse,
   SlotLivre,
 } from "@/types/agenda";
@@ -41,18 +36,12 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  HorariosDeTrabalhoEditor,
+  RegrasDaAgendaEditor,
+} from "@/components/personal/agenda/configuracoes";
 
-const DIAS: DiaSemana[] = [
-  "SEGUNDA",
-  "TERCA",
-  "QUARTA",
-  "QUINTA",
-  "SEXTA",
-  "SABADO",
-  "DOMINGO",
-];
 
 const SEM_HORARIO: Record<HorariosLivresResponse["motivo"], string> = {
   OK: "",
@@ -440,310 +429,27 @@ export function HorariosDeTrabalhoModal({
   onOpenChange: (aberto: boolean) => void;
   onMudou: () => void;
 }) {
-  const { data, loading, refetch } = useApi<HorariosDeTrabalhoResponse>(
-    open ? "/api/personal/agenda/trabalho" : null
-  );
-
-  const [faixas, setFaixas] = React.useState<FaixaDeTrabalho[] | null>(null);
-  const lista = faixas ?? data?.faixas ?? [];
-
-  const [diaSemana, setDiaSemana] = React.useState<DiaSemana>("SEGUNDA");
-  const [horaInicio, setHoraInicio] = React.useState("06:00");
-  const [horaFim, setHoraFim] = React.useState("12:00");
-  const [duracaoMin, setDuracaoMin] = React.useState("60");
-  const [salvando, setSalvando] = React.useState(false);
-
-  async function adicionar() {
-    setSalvando(true);
-    try {
-      const res = await fetch("/api/personal/agenda/trabalho", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          diaSemana,
-          horaInicio,
-          horaFim,
-          duracaoMin: Number(duracaoMin),
-        }),
-      });
-      const body = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        toast.error(body?.error ?? "Não foi possível salvar a faixa.");
-        return;
-      }
-
-      setFaixas(body.faixas as FaixaDeTrabalho[]);
-      toast.success("Horário de trabalho adicionado.");
-      onMudou();
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  async function remover(faixaId: string) {
-    const res = await fetch(`/api/personal/agenda/trabalho/${faixaId}`, { method: "DELETE" });
-    const body = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      toast.error(body?.error ?? "Não foi possível remover.");
-      return;
-    }
-
-    setFaixas(body.faixas as FaixaDeTrabalho[]);
-    toast.success("Faixa removida.");
-    onMudou();
-  }
-
-  const porDia = DIAS.map((dia) => ({
-    dia,
-    faixas: lista.filter((faixa) => faixa.diaSemana === dia),
-  }));
+  const [duracaoPadrao, setDuracaoPadrao] = React.useState(60);
 
   return (
     <Modal
       open={open}
-      onOpenChange={(aberto) => {
-        if (!aberto) {
-          setFaixas(null);
-          refetch();
-        }
-        onOpenChange(aberto);
-      }}
+      onOpenChange={onOpenChange}
       title="Configurações da agenda"
       description="Seus horários de trabalho e as regras para o aluno marcar sozinho."
       footer={<ModalClose render={<Button>Fechar</Button>} />}
     >
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
-          <span className="text-sm font-medium">Adicionar faixa</span>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="col-span-2 flex flex-col gap-1.5">
-              <Label htmlFor="trabalho-dia">Dia</Label>
-              <Select
-                value={diaSemana}
-                onValueChange={(valor) => setDiaSemana((valor as DiaSemana) ?? "SEGUNDA")}
-              >
-                <SelectTrigger id="trabalho-dia" className="w-full">
-                  <SelectValue>{() => diaSemanaLabel(diaSemana)}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {DIAS.map((dia) => (
-                    <SelectItem key={dia} value={dia}>
-                      {diaSemanaLabel(dia)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="trabalho-inicio">Das</Label>
-              <Input
-                id="trabalho-inicio"
-                type="time"
-                value={horaInicio}
-                onChange={(evento) => setHoraInicio(evento.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="trabalho-fim">Até</Label>
-              <Input
-                id="trabalho-fim"
-                type="time"
-                value={horaFim}
-                onChange={(evento) => setHoraFim(evento.target.value)}
-              />
-            </div>
-            <div className="col-span-2 flex flex-col gap-1.5">
-              <Label htmlFor="trabalho-duracao">Duração de cada atendimento (min)</Label>
-              <Input
-                id="trabalho-duracao"
-                type="number"
-                min={15}
-                max={240}
-                step={15}
-                value={duracaoMin}
-                onChange={(evento) => setDuracaoMin(evento.target.value)}
-              />
-            </div>
-          </div>
-
-          <Button size="sm" onClick={adicionar} disabled={salvando} className="self-start">
-            {salvando ? <Spinner /> : <PlusIcon />}
-            Adicionar
-          </Button>
+      {/* Os mesmos editores da página de perfil - um lugar só para a lógica. */}
+      <div className="flex flex-col gap-6">
+        <HorariosDeTrabalhoEditor onMudou={onMudou} duracaoPadrao={duracaoPadrao} />
+        <div className="border-t border-border pt-4">
+          <RegrasDaAgendaEditor
+            onMudou={onMudou}
+            onRegras={(regras) => setDuracaoPadrao(regras.duracaoPadraoMin)}
+          />
         </div>
-
-        {loading && !faixas ? (
-          <div className="flex flex-col gap-2">
-            {Array.from({ length: 3 }).map((_, indice) => (
-              <Skeleton key={indice} className="h-10 rounded-lg" />
-            ))}
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {porDia.map(({ dia, faixas: doDia }) => (
-              <li key={dia} className="flex items-start gap-3 border-b border-border pb-2 last:border-0">
-                <span className="w-20 shrink-0 pt-1 text-sm font-medium">
-                  {diaSemanaLabel(dia)}
-                </span>
-
-                <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
-                  {doDia.length === 0 ? (
-                    <span className="pt-1 text-xs text-muted-foreground">Não atendo</span>
-                  ) : (
-                    doDia.map((faixa) => (
-                      <span
-                        key={faixa.id}
-                        className="flex items-center gap-1.5 rounded-lg bg-muted px-2 py-1 text-xs font-medium tabular-nums"
-                      >
-                        {faixa.horaInicio}–{faixa.horaFim}
-                        <span className="text-muted-foreground">· {faixa.duracaoMin}min</span>
-                        <button
-                          type="button"
-                          onClick={() => remover(faixa.id)}
-                          aria-label={`Remover ${faixa.horaInicio} às ${faixa.horaFim}`}
-                          className="rounded p-0.5 text-muted-foreground transition-colors hover:text-destructive"
-                        >
-                          <XIcon className="size-3" />
-                        </button>
-                      </span>
-                    ))
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <RegrasDoAluno onMudou={onMudou} />
       </div>
     </Modal>
-  );
-}
-
-/** Regras que o aluno precisa respeitar para marcar sozinho. */
-function RegrasDoAluno({ onMudou }: { onMudou: () => void }) {
-  const { data } = useApi<{ regras: RegrasAgendamento }>("/api/personal/agenda/regras");
-  const [regras, setRegras] = React.useState<RegrasAgendamento | null>(null);
-  const [salvando, setSalvando] = React.useState(false);
-
-  const atual = regras ?? data?.regras ?? null;
-
-  async function salvar(mudanca: Partial<RegrasAgendamento>) {
-    if (!atual) return;
-
-    const novas = { ...atual, ...mudanca };
-    setRegras(novas);
-    setSalvando(true);
-
-    try {
-      const res = await fetch("/api/personal/agenda/regras", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(novas),
-      });
-      const body = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        toast.error(body?.error ?? "Não foi possível salvar as regras.");
-        setRegras(atual);
-        return;
-      }
-
-      setRegras(body.regras as RegrasAgendamento);
-      onMudou();
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  if (!atual) return <Skeleton className="h-40 rounded-xl" />;
-
-  const numeros: { chave: keyof RegrasAgendamento; rotulo: string; ajuda: string; max: number }[] = [
-    {
-      chave: "antecedenciaMinHoras",
-      rotulo: "Antecedência mínima (h)",
-      ajuda: "Quanto tempo antes o aluno precisa marcar.",
-      max: 168,
-    },
-    {
-      chave: "cancelamentoMinHoras",
-      rotulo: "Cancelamento (h)",
-      ajuda: "Prazo para o aluno cancelar ou reagendar sozinho.",
-      max: 168,
-    },
-    {
-      chave: "janelaDias",
-      rotulo: "Janela (dias)",
-      ajuda: "Até quantos dias à frente ele pode marcar.",
-      max: 180,
-    },
-    {
-      chave: "maxAtivosPorAluno",
-      rotulo: "Máx. marcados",
-      ajuda: "Atendimentos futuros por aluno.",
-      max: 20,
-    },
-  ];
-
-  return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium">Regras para os alunos</span>
-        {salvando ? <Spinner size="sm" /> : null}
-      </div>
-
-      <label className="flex items-start justify-between gap-3">
-        <span className="flex flex-col">
-          <span className="text-sm">Aluno pode marcar sozinho</span>
-          <span className="text-xs text-muted-foreground">
-            Desligado, só você marca os horários.
-          </span>
-        </span>
-        <Switch
-          checked={atual.permiteAgendamento}
-          onCheckedChange={(marcado) => salvar({ permiteAgendamento: marcado })}
-        />
-      </label>
-
-      <label className="flex items-start justify-between gap-3">
-        <span className="flex flex-col">
-          <span className="text-sm">Confirmar automaticamente</span>
-          <span className="text-xs text-muted-foreground">
-            Desligado, o pedido do aluno fica aguardando seu aceite.
-          </span>
-        </span>
-        <Switch
-          checked={atual.confirmacaoAutomatica}
-          onCheckedChange={(marcado) => salvar({ confirmacaoAutomatica: marcado })}
-        />
-      </label>
-
-      <div className="grid grid-cols-2 gap-3">
-        {numeros.map((campo) => (
-          <div key={campo.chave} className="flex flex-col gap-1.5">
-            <Label htmlFor={`regra-${campo.chave}`} className="text-xs">
-              {campo.rotulo}
-            </Label>
-            <Input
-              id={`regra-${campo.chave}`}
-              type="number"
-              min={0}
-              max={campo.max}
-              value={String(atual[campo.chave])}
-              onChange={(evento) =>
-                setRegras({ ...atual, [campo.chave]: Number(evento.target.value) })
-              }
-              onBlur={(evento) => salvar({ [campo.chave]: Number(evento.target.value) })}
-            />
-            <span className="text-[0.7rem] text-muted-foreground">{campo.ajuda}</span>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 

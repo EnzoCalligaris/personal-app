@@ -12,6 +12,7 @@ import { formatarDataCalendario, iniciais } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import type { MeuPerfil as MeuPerfilData } from "@/types/aluno-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { FotoDePerfil } from "@/components/ui/foto-de-perfil";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-state";
@@ -24,11 +25,27 @@ import { Spinner } from "@/components/ui/spinner";
 // Os campos chegam do input como string; a conversão para o payload acontece
 // em `paraPayload` e a API valida de novo com `editarMeuPerfilSchema`.
 const formSchema = z.object({
-  nome: z.string().trim().min(2, "Informe seu nome."),
-  telefone: z.string(),
-  dataNascimento: z.string(),
-  altura: z.string(),
-  objetivo: z.string(),
+  nome: z.string().trim().min(2, "Informe seu nome.").max(120, "Nome muito longo."),
+  telefone: z
+    .string()
+    .refine(
+      (valor) => valor.trim() === "" || /^[ds()+-]{8,20}$/.test(valor.trim()),
+      "Use apenas números, espaços e os sinais ( ) + -."
+    ),
+  dataNascimento: z
+    .string()
+    .refine((valor) => {
+      if (!valor) return true;
+      const data = new Date(valor);
+      return !Number.isNaN(data.getTime()) && data <= new Date();
+    }, "Data de nascimento inválida."),
+  altura: z
+    .string()
+    .refine(
+      (valor) => valor === "" || (Number(valor) >= 80 && Number(valor) <= 260),
+      "Informe a altura em centímetros (entre 80 e 260)."
+    ),
+  objetivo: z.string().max(200, "Máximo de 200 caracteres."),
 });
 
 type Valores = z.infer<typeof formSchema>;
@@ -132,12 +149,14 @@ export function MeuPerfil() {
         <>
           <Card>
             <CardContent className="flex flex-wrap items-center gap-4">
-              <Avatar size="lg">
-                {atual.avatarUrl ? <AvatarImage src={atual.avatarUrl} alt="" /> : null}
-                <AvatarFallback className="bg-primary/15 font-medium text-primary dark:bg-primary/20">
-                  {iniciais(atual.nome)}
-                </AvatarFallback>
-              </Avatar>
+              <FotoDePerfil
+                nome={atual.nome}
+                avatarUrl={atual.avatarUrl}
+                onEnviada={(avatarUrl) => {
+                  setPerfil({ ...atual, avatarUrl });
+                  router.refresh();
+                }}
+              />
 
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate font-heading text-lg font-semibold">{atual.nome}</span>
@@ -201,7 +220,15 @@ export function MeuPerfil() {
                       <PhoneIcon className="size-3.5" aria-hidden="true" />
                       Telefone
                     </Label>
-                    <Input id="telefone" placeholder="(11) 90000-0000" {...register("telefone")} />
+                    <Input
+                      id="telefone"
+                      placeholder="(11) 90000-0000"
+                      {...register("telefone")}
+                      aria-invalid={!!errors.telefone}
+                    />
+                    {errors.telefone ? (
+                      <span className="text-xs text-destructive">{errors.telefone.message}</span>
+                    ) : null}
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -209,7 +236,17 @@ export function MeuPerfil() {
                       <CalendarDaysIcon className="size-3.5" aria-hidden="true" />
                       Data de nascimento
                     </Label>
-                    <Input id="dataNascimento" type="date" {...register("dataNascimento")} />
+                    <Input
+                      id="dataNascimento"
+                      type="date"
+                      {...register("dataNascimento")}
+                      aria-invalid={!!errors.dataNascimento}
+                    />
+                    {errors.dataNascimento ? (
+                      <span className="text-xs text-destructive">
+                        {errors.dataNascimento.message}
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -217,7 +254,16 @@ export function MeuPerfil() {
                       <RulerIcon className="size-3.5" aria-hidden="true" />
                       Altura (cm)
                     </Label>
-                    <Input id="altura" type="number" placeholder="168" {...register("altura")} />
+                    <Input
+                      id="altura"
+                      type="number"
+                      placeholder="168"
+                      {...register("altura")}
+                      aria-invalid={!!errors.altura}
+                    />
+                    {errors.altura ? (
+                      <span className="text-xs text-destructive">{errors.altura.message}</span>
+                    ) : null}
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -229,7 +275,11 @@ export function MeuPerfil() {
                       id="objetivo"
                       placeholder="Hipertrofia, emagrecimento..."
                       {...register("objetivo")}
+                      aria-invalid={!!errors.objetivo}
                     />
+                    {errors.objetivo ? (
+                      <span className="text-xs text-destructive">{errors.objetivo.message}</span>
+                    ) : null}
                   </div>
                 </div>
 

@@ -649,6 +649,7 @@ export async function regrasDoPersonal(personalId: string): Promise<RegrasAgenda
     cancelamentoMinHoras: config.cancelamentoMinHoras,
     maxAtivosPorAluno: config.maxAtivosPorAluno,
     confirmacaoAutomatica: config.confirmacaoAutomatica,
+    duracaoPadraoMin: config.duracaoPadraoMin,
   };
 }
 

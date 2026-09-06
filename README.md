@@ -139,6 +139,45 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
 
+## Perfil e configurações (Fase 17)
+
+**Aluno** (`/aluno/perfil`): foto, nome, telefone, data de nascimento, altura e objetivo. O e-mail
+aparece somente leitura — ele identifica a conta e é gerenciado pelo Personal.
+
+**Personal** (`/personal/perfil`): a página abre com a foto, o resumo (alunos, ativos, treinos) e
+duas abas:
+
+- **Meus dados** — foto, nome, e-mail (somente leitura), telefone, CREF e uma bio curta.
+- **Agenda e regras** — os horários de trabalho (as mesmas faixas da agenda) e as regras de
+  agendamento: **duração padrão do treino**, **tempo mínimo** e **tempo máximo** para o aluno
+  marcar, **prazo de cancelamento**, limite de marcações por aluno e os interruptores de "aluno pode
+  marcar sozinho" e "confirmar automaticamente". As regras salvam sozinhas ao sair do campo.
+
+| Endpoint | O que faz |
+| -------- | --------- |
+| `GET/PATCH /api/personal/perfil` | Dados do Personal (nome, telefone, CREF, bio) + resumo |
+| `GET/PATCH /api/aluno/perfil` | Dados do aluno |
+| `POST /api/perfil/foto` | Foto do próprio usuário (serve aos dois papéis) |
+| `GET/PUT /api/personal/agenda/regras` | Regras de agendamento, incluindo a duração padrão |
+
+Decisões:
+
+- **Validação nos dois lados, com a mesma regra.** O schema Zod do servidor
+  (`src/lib/validations/perfil.ts` e `.../agenda.ts`) tem um espelho no formulário, então o erro
+  aparece no campo antes da requisição sair — e continua barrado se alguém chamar a API direto.
+  Telefone aceita só dígitos e `( ) + -`; altura fica entre 80 e 260 cm; duração entre 15 e 240 min;
+  antecedência e cancelamento até 168 h; janela até 180 dias.
+- **A foto sai da sessão, não da URL**: `POST /api/perfil/foto` grava em `avatars/<papel>/<userId>`
+  e atualiza o próprio usuário — não há como trocar a foto de outra pessoa.
+- **Um editor, dois lugares**: `HorariosDeTrabalhoEditor` e `RegrasDaAgendaEditor`
+  (`src/components/personal/agenda/configuracoes.tsx`) são usados tanto pela página de perfil quanto
+  pelo modal de configurações da agenda — a lógica mora em um lugar só.
+
+Cobertura: `tests/perfil-http.test.ts` (11 testes) — autorização, leitura e edição do perfil do
+Personal com resumo, validações recusadas, isolamento entre Personals, regras de agenda (incluindo a
+duração padrão e a recusa de valores fora do intervalo), edição do perfil do aluno e o upload de
+foto (sem sessão, sem arquivo e formato inválido).
+
 ## Notificações internas (Fase 16)
 
 A campainha da barra superior mostra o **contador de não lidas**, a lista das últimas 20

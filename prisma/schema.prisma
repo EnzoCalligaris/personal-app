@@ -309,6 +309,8 @@ model ConfiguracaoAgenda {
   cancelamentoMinHoras  Int     @default(12)
   /// Quantos atendimentos futuros o aluno pode ter marcados ao mesmo tempo.
   maxAtivosPorAluno     Int     @default(3)
+  /// Duração sugerida de cada atendimento ao criar uma faixa de trabalho.
+  duracaoPadraoMin      Int     @default(60)
   /// O agendamento do aluno já nasce confirmado (senão fica à espera do aceite).
   confirmacaoAutomatica Boolean @default(false)
 

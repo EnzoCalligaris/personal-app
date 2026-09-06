@@ -93,6 +93,7 @@ export const regrasAgendamentoSchema = z.object({
   cancelamentoMinHoras: z.coerce.number().int().min(0).max(168).optional(),
   maxAtivosPorAluno: z.coerce.number().int().min(1).max(20).optional(),
   confirmacaoAutomatica: z.boolean().optional(),
+  duracaoPadraoMin: z.coerce.number().int().min(15).max(240).optional(),
 });
 export type RegrasAgendamentoInput = z.infer<typeof regrasAgendamentoSchema>;
 

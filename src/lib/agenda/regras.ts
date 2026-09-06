@@ -11,6 +11,7 @@ export const REGRAS_PADRAO: RegrasAgendamento = {
   cancelamentoMinHoras: 12,
   maxAtivosPorAluno: 3,
   confirmacaoAutomatica: false,
+  duracaoPadraoMin: 60,
 };
 
 /** O instante em que o atendimento começa, a partir da data e da hora. */
