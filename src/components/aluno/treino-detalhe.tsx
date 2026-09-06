@@ -152,7 +152,13 @@ function ItemFicha({ item }: { item: TreinoItemExercicio }) {
       <span className="relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary/15 to-muted text-primary/50">
         {item.exercicio.imagemUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={item.exercicio.imagemUrl} alt="" className="size-full object-cover" />
+          <img
+            src={item.exercicio.imagemUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="size-full object-cover"
+          />
         ) : (
           <DumbbellIcon className="size-6" aria-hidden="true" />
         )}

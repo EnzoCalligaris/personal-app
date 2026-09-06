@@ -459,7 +459,12 @@ function ExercicioAtual({
       <div className="relative aspect-[16/10] max-h-[38vh] w-full bg-gradient-to-br from-primary/15 to-muted">
         {item.exercicio.imagemUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={item.exercicio.imagemUrl} alt="" className="size-full object-cover" />
+          <img
+            src={item.exercicio.imagemUrl}
+            alt=""
+            decoding="async"
+            className="size-full object-cover"
+          />
         ) : (
           <span className="flex size-full items-center justify-center text-primary/40">
             <DumbbellIcon className="size-14" aria-hidden="true" />

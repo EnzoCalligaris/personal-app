@@ -371,6 +371,8 @@ function CardExercicio({
             <img
               src={exercicio.imagemUrl}
               alt=""
+              loading="lazy"
+              decoding="async"
               className="size-full object-cover transition-transform group-hover:scale-105"
             />
           ) : (
