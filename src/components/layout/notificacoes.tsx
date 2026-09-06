@@ -7,6 +7,7 @@ import {
   BellIcon,
   CalendarDaysIcon,
   CheckCheckIcon,
+  CheckIcon,
   DumbbellIcon,
   MessageSquareTextIcon,
 } from "lucide-react";
@@ -22,6 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const ICONE: Record<TipoNotificacao, LucideIcon> = {
   NOVO_TREINO: DumbbellIcon,
+  TREINO_ALTERADO: DumbbellIcon,
+  NOVO_AGENDAMENTO: CalendarDaysIcon,
   AGENDAMENTO_CONFIRMADO: CalendarDaysIcon,
   AGENDAMENTO_CANCELADO: CalendarDaysIcon,
   AGENDAMENTO_REAGENDADO: CalendarDaysIcon,
@@ -50,6 +53,11 @@ export function Notificacoes() {
     setVersao((valor) => valor + 1);
   }
 
+  async function marcarUma(id: string) {
+    await fetch(`/api/notificacoes/${id}`, { method: "PATCH" });
+    setVersao((valor) => valor + 1);
+  }
+
   return (
     <Popover
       open={aberto}
@@ -70,7 +78,9 @@ export function Notificacoes() {
           >
             <BellIcon />
             {naoLidas > 0 ? (
-              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background" />
+              <span className="absolute -top-0.5 -right-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.6rem] leading-4 font-semibold text-primary-foreground ring-2 ring-background tabular-nums">
+                {naoLidas > 9 ? "9+" : naoLidas}
+              </span>
             ) : null}
           </Button>
         }
@@ -145,18 +155,37 @@ export function Notificacoes() {
                 );
 
                 return (
-                  <li key={notificacao.id} className="border-b border-border last:border-0">
+                  <li
+                    key={notificacao.id}
+                    className="flex items-start border-b border-border last:border-0"
+                  >
                     {notificacao.link ? (
                       <Link
                         href={notificacao.link}
-                        onClick={() => setAberto(false)}
-                        className="flex gap-2.5 px-3 py-2.5 transition-colors hover:bg-muted/60"
+                        onClick={() => {
+                          setAberto(false);
+                          if (!notificacao.lida) void marcarUma(notificacao.id);
+                        }}
+                        className="flex flex-1 gap-2.5 px-3 py-2.5 transition-colors hover:bg-muted/60"
                       >
                         {conteudo}
                       </Link>
                     ) : (
-                      <div className="flex gap-2.5 px-3 py-2.5">{conteudo}</div>
+                      <div className="flex flex-1 gap-2.5 px-3 py-2.5">{conteudo}</div>
                     )}
+
+                    {!notificacao.lida ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label="Marcar como lida"
+                        title="Marcar como lida"
+                        className="mt-2.5 mr-2 shrink-0 text-muted-foreground"
+                        onClick={() => marcarUma(notificacao.id)}
+                      >
+                        <CheckIcon />
+                      </Button>
+                    ) : null}
                   </li>
                 );
               })}

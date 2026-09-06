@@ -10,7 +10,8 @@ import {
   paraISO,
   somarDiasUTC,
 } from "@/lib/date-utils";
-import { STATUS_ATIVOS } from "@/lib/agenda/status";
+import { ocupaHorario, STATUS_ATIVOS } from "@/lib/agenda/status";
+import { notificar } from "@/lib/notificacoes/enviar";
 import { REGRAS_PADRAO } from "@/lib/agenda/regras";
 import { gerarSlots, removerOcupados, sobrepoe } from "@/lib/agenda/horarios";
 import { treinosPrevistosPara } from "@/lib/programacoes/queries";
@@ -289,6 +290,14 @@ async function garantirHorarioLivre(
   if (bloqueado) throw new HorarioBloqueadoError();
 }
 
+async function nomeDoPersonal(personalId: string) {
+  const personal = await prisma.personalProfile.findUnique({
+    where: { id: personalId },
+    select: { user: { select: { name: true } } },
+  });
+  return personal?.user.name ?? "Seu Personal";
+}
+
 async function garantirAlunoDoPersonal(personalId: string, alunoId: string) {
   const aluno = await prisma.alunoProfile.findFirst({
     where: { id: alunoId, personalId },
@@ -321,6 +330,18 @@ export async function criarAgendamento(
     },
     include: incluirAluno,
   });
+
+  if (ocupaHorario(agendamento.status)) {
+    await notificar({
+      tipo: "AGENDAMENTO_CONFIRMADO",
+      alunoId: agendamento.alunoId,
+      quando: {
+        data: paraISO(dataDoInstante(agendamento.data)),
+        horaInicio: agendamento.horaInicio,
+        horaFim: agendamento.horaFim,
+      },
+    });
+  }
 
   return toAgendamento(agendamento, await treinoDoDia(agendamento));
 }
@@ -373,6 +394,33 @@ export async function atualizarAgendamento(
     },
     include: incluirAluno,
   });
+
+  const quando = {
+    data: paraISO(dataDoInstante(agendamento.data)),
+    horaInicio: agendamento.horaInicio,
+    horaFim: agendamento.horaFim,
+  };
+
+  // Um aviso por mudança: confirmação, cancelamento ou novo horário.
+  if (input.status === "CONFIRMADO" && atual.status !== "CONFIRMADO") {
+    await notificar({ tipo: "AGENDAMENTO_CONFIRMADO", alunoId: agendamento.alunoId, quando });
+  } else if (input.status === "CANCELADO" && atual.status !== "CANCELADO") {
+    await notificar({
+      tipo: "AGENDAMENTO_CANCELADO",
+      alunoId: agendamento.alunoId,
+      porQuem: "PERSONAL",
+      quem: await nomeDoPersonal(personalId),
+      quando,
+    });
+  } else if (mudouHorario) {
+    await notificar({
+      tipo: "AGENDAMENTO_REAGENDADO",
+      alunoId: agendamento.alunoId,
+      porQuem: "PERSONAL",
+      quem: await nomeDoPersonal(personalId),
+      quando,
+    });
+  }
 
   return toAgendamento(agendamento, await treinoDoDia(agendamento));
 }

@@ -24,6 +24,8 @@ export type FeedbackListResponse = {
 
 export type TipoNotificacao =
   | "NOVO_TREINO"
+  | "TREINO_ALTERADO"
+  | "NOVO_AGENDAMENTO"
   | "AGENDAMENTO_CONFIRMADO"
   | "AGENDAMENTO_CANCELADO"
   | "AGENDAMENTO_REAGENDADO"

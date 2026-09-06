@@ -124,7 +124,7 @@ src/lib/auth/guards.ts     requireAuth/requirePersonal/requireAluno + regras de 
 src/lib/agenda/            Horários de trabalho, geração de slots e regras de conflito
 src/lib/avaliacoes/        Avaliações de bioimpedância (medidas opcionais + variações)
 src/lib/feedbacks/         Comentários do Personal para os alunos
-src/lib/notificacoes/      Notificações internas (campainha da barra superior)
+src/lib/notificacoes/      Eventos, canais de entrega e a campainha (ver Fase 16)
 src/lib/aluno/             Consultas da área do aluno (escopadas pelo perfil da sessão)
 src/lib/programacoes/      Programação semanal + resolução do treino previsto por data
 src/lib/prisma.ts          Cliente Prisma (adapter-pg)
@@ -139,7 +139,52 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
 
-## Feedback e notificações (Fase 15)
+## Notificações internas (Fase 16)
+
+A campainha da barra superior mostra o **contador de não lidas**, a lista das últimas 20
+notificações, **marcar uma** como lida e **marcar todas**. Vale para os dois papéis; cada usuário só
+enxerga e marca as próprias (as de outro respondem 404).
+
+| Quem recebe | Evento | Disparado em |
+| ----------- | ------ | ------------ |
+| Aluno | `NOVO_TREINO` | o Personal cria um treino |
+| Aluno | `TREINO_ALTERADO` | o Personal edita a ficha |
+| Aluno | `NOVA_AVALIACAO` | o Personal registra uma bioimpedância |
+| Aluno | `NOVO_FEEDBACK` | o Personal escreve um comentário |
+| Aluno | `AGENDAMENTO_CONFIRMADO` | o Personal marca ou confirma um horário |
+| Aluno | `AGENDAMENTO_CANCELADO` | o Personal cancela |
+| Aluno | `AGENDAMENTO_REAGENDADO` | o Personal move o horário |
+| Personal | `NOVO_AGENDAMENTO` | o aluno marca sozinho |
+| Personal | `AGENDAMENTO_CANCELADO` | o aluno cancela |
+| Personal | `AGENDAMENTO_REAGENDADO` | o aluno remarca |
+
+### Arquitetura: evento → mensagem → canais
+
+```
+src/lib/notificacoes/
+  eventos.ts   O catálogo de eventos e o texto de cada um (título, mensagem, link)
+  canais.ts    Os canais de entrega: INTERNO (implementado), EMAIL/WHATSAPP/PUSH (declarados)
+  enviar.ts    O despachante: resolve o destinatário e entrega em cada canal habilitado
+  queries.ts   Leitura e marcações (a campainha)
+```
+
+Quem executa a ação **só descreve o evento** — `notificar({ tipo: "NOVO_TREINO", alunoId, treino })`.
+Daí para frente é com o despachante: ele descobre o usuário a partir do perfil, monta a mensagem
+pelo catálogo e entrega em todos os canais habilitados.
+
+- **O texto mora em um lugar só** (`eventos.ts`), então o dia em que o e-mail existir ele sai igual
+  ao que aparece no app.
+- **Nenhuma falha de entrega derruba a ação**: erro de canal vira log. Ninguém perde um treino
+  porque a notificação falhou.
+- **Adicionar um canal** é implementar `entregar` e ligar `habilitado` em `canais.ts` — nenhuma
+  query precisa mudar. E-mail, WhatsApp e push já estão declarados com `habilitado: false`,
+  marcando onde a integração entra. **Nada externo é chamado hoje.**
+
+Cobertura: `tests/notificacoes-http.test.ts` (13 testes) — um caso por evento (aluno e Personal),
+contador, marcar uma, marcar todas, isolamento entre usuários, autenticação, e dois testes da
+arquitetura: só o canal interno habilitado e uma entrega impossível que não estoura.
+
+## Feedback do Personal (Fase 15)
 
 O Personal escreve comentários na aba **Feedbacks** da ficha do aluno; o aluno lê em
 **`/aluno/feedback`**, com o comentário mais recente em destaque e o histórico logo abaixo.
@@ -441,7 +486,7 @@ O início abre com **"Olá, [Nome] 👋"** e mostra, nesta ordem:
 | `GET /api/aluno/agenda` | Agendamentos próximos e anteriores (ver [Agendamento pelo aluno](#agendamento-pelo-aluno-fase-13)) |
 | `GET /api/aluno/evolucao` | Avaliações em ordem cronológica + variações por métrica |
 | `GET /api/aluno/progresso` | Frequência, sequência e evolução de carga por exercício |
-| `GET /api/aluno/feedbacks` | Comentários do Personal (ver [Feedback e notificações](#feedback-e-notificações-fase-15)) |
+| `GET /api/aluno/feedbacks` | Comentários do Personal (ver [Feedback do Personal](#feedback-do-personal-fase-15)) |
 | `GET/PATCH /api/aluno/perfil` | Dados do próprio aluno (nome, telefone, nascimento, altura, objetivo) |
 
 Como o isolamento é garantido:

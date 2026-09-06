@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { notificar } from "@/lib/notificacoes/enviar";
 import { DIAS_SEMANA, hojeUTC } from "@/lib/date-utils";
 import type { DiaSemana } from "@/types";
 import type { Prisma } from "@prisma/client";
@@ -239,6 +240,12 @@ export async function criarTreino(
     },
   });
 
+  await notificar({
+    tipo: "NOVO_TREINO",
+    alunoId: input.alunoId,
+    treino: { id: treino.id, nome: treino.nome },
+  });
+
   return (await obterTreino(personalId, treino.id))!;
 }
 
@@ -249,14 +256,14 @@ export async function atualizarTreino(
 ): Promise<TreinoDetalhe | null> {
   const treino = await prisma.treino.findFirst({
     where: { id: treinoId, personalId },
-    select: { id: true },
+    select: { id: true, alunoId: true },
   });
   if (!treino) return null;
 
   // Transferir para outro aluno só vale se ele também for deste Personal.
   if (input.alunoId) await garantirAlunoDoPersonal(personalId, input.alunoId);
 
-  await prisma.treino.update({
+  const atualizado = await prisma.treino.update({
     where: { id: treino.id },
     data: {
       ...(input.nome !== undefined ? { nome: input.nome } : {}),
@@ -264,6 +271,14 @@ export async function atualizarTreino(
       ...(input.ativo !== undefined ? { ativo: input.ativo } : {}),
       ...(input.alunoId !== undefined ? { alunoId: input.alunoId } : {}),
     },
+  });
+
+  // O aviso vai para quem está com a ficha agora. Transferir o treino avisa o
+  // novo dono - o antigo não precisa saber de um treino que não é mais dele.
+  await notificar({
+    tipo: "TREINO_ALTERADO",
+    alunoId: atualizado.alunoId,
+    treino: { id: atualizado.id, nome: atualizado.nome },
   });
 
   return obterTreino(personalId, treino.id);

@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { notificar } from "@/lib/notificacoes/enviar";
 import type { Avaliacao, AvaliacaoListResponse } from "@/types/avaliacao";
 import type {
   CriarAvaliacaoInput,
@@ -212,6 +213,12 @@ export async function criarAvaliacao(
       medidas: medidas ?? undefined,
     },
     include: incluirAluno,
+  });
+
+  await notificar({
+    tipo: "NOVA_AVALIACAO",
+    alunoId,
+    data: avaliacao.data.toISOString(),
   });
 
   return (await obterAvaliacao(personalId, avaliacao.id))!;

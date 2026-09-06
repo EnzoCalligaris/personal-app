@@ -2,7 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { criarNotificacao } from "@/lib/notificacoes/queries";
+import { notificar } from "@/lib/notificacoes/enviar";
 import type { FeedbackItem, FeedbackListResponse } from "@/types/feedback";
 import type {
   CriarFeedbackInput,
@@ -123,15 +123,12 @@ export async function listarFeedbacks(
   };
 }
 
-/**
- * Escreve o comentário e avisa o aluno: a notificação interna é criada na
- * mesma transação, para não existir feedback sem aviso.
- */
+/** Escreve o comentário e dispara o evento que avisa o aluno. */
 export async function criarFeedback(
   personalId: string,
   input: CriarFeedbackInput
 ): Promise<FeedbackItem> {
-  const aluno = await garantirAlunoDoPersonal(personalId, input.alunoId);
+  await garantirAlunoDoPersonal(personalId, input.alunoId);
 
   if (input.avaliacaoId) {
     const avaliacao = await prisma.avaliacao.findFirst({
@@ -151,14 +148,7 @@ export async function criarFeedback(
     include: incluirPessoas,
   });
 
-  await criarNotificacao({
-    userId: aluno.userId,
-    tipo: "NOVO_FEEDBACK",
-    titulo: "Novo feedback do seu Personal",
-    mensagem:
-      feedback.texto.length > 120 ? `${feedback.texto.slice(0, 117)}...` : feedback.texto,
-    link: "/aluno/feedback",
-  });
+  await notificar({ tipo: "NOVO_FEEDBACK", alunoId: input.alunoId, texto: feedback.texto });
 
   return toFeedback(feedback);
 }

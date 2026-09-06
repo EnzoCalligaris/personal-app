@@ -19,6 +19,7 @@ import {
   podeDesmarcar,
 } from "@/lib/agenda/regras";
 import { regrasDoPersonal } from "@/lib/agenda/queries";
+import { notificar } from "@/lib/notificacoes/enviar";
 import type { RegrasAgendamento, SlotLivre } from "@/types/agenda";
 import type {
   DiaParaAgendar,
@@ -74,12 +75,17 @@ async function personalDoAluno(alunoId: string) {
     where: { id: alunoId },
     select: {
       personalId: true,
+      user: { select: { name: true } },
       personal: { select: { user: { select: { name: true, email: true, avatarUrl: true } } } },
     },
   });
 
   if (!aluno?.personalId) throw new SemPersonalError();
-  return { personalId: aluno.personalId, personal: aluno.personal };
+  return {
+    personalId: aluno.personalId,
+    personal: aluno.personal,
+    nomeDoAluno: aluno.user.name,
+  };
 }
 
 /** Atendimentos futuros que ainda ocupam a agenda do aluno. */
@@ -385,7 +391,7 @@ export async function agendarComoAluno(
   input: AgendarComoAlunoInput,
   agora: Date = new Date()
 ): Promise<MeuAgendamento> {
-  const { personalId } = await personalDoAluno(alunoId);
+  const { personalId, nomeDoAluno } = await personalDoAluno(alunoId);
   const regras = await regrasDoPersonal(personalId);
 
   await garantirQuePodeMarcar(alunoId, personalId, regras, input, agora);
@@ -403,6 +409,14 @@ export async function agendarComoAluno(
     },
   });
 
+  // O Personal precisa saber que apareceu horário novo na agenda dele.
+  await notificar({
+    tipo: "NOVO_AGENDAMENTO",
+    personalId,
+    quem: nomeDoAluno,
+    quando: { data: input.data, horaInicio: input.horaInicio, horaFim: input.horaFim },
+  });
+
   return toMeuAgendamento(agendamento, regras, agora);
 }
 
@@ -418,7 +432,7 @@ export async function editarComoAluno(
   });
   if (!atual) throw new AgendamentoNaoEncontradoError();
 
-  const { personalId } = await personalDoAluno(alunoId);
+  const { personalId, nomeDoAluno } = await personalDoAluno(alunoId);
   const regras = await regrasDoPersonal(personalId);
 
   if (!(STATUS_ATIVOS as readonly string[]).includes(atual.status)) {
@@ -440,6 +454,19 @@ export async function editarComoAluno(
       where: { id: atual.id },
       data: { status: "CANCELADO" },
     });
+
+    await notificar({
+      tipo: "AGENDAMENTO_CANCELADO",
+      personalId,
+      porQuem: "ALUNO",
+      quem: nomeDoAluno,
+      quando: {
+        data: paraISO(dataDoInstante(cancelado.data)),
+        horaInicio: cancelado.horaInicio,
+        horaFim: cancelado.horaFim,
+      },
+    });
+
     return toMeuAgendamento(cancelado, regras, agora);
   }
 
@@ -459,6 +486,14 @@ export async function editarComoAluno(
       horaFim: novo.horaFim,
       status: "REAGENDADO",
     },
+  });
+
+  await notificar({
+    tipo: "AGENDAMENTO_REAGENDADO",
+    personalId,
+    porQuem: "ALUNO",
+    quem: nomeDoAluno,
+    quando: { data: novo.data, horaInicio: novo.horaInicio, horaFim: novo.horaFim },
   });
 
   return toMeuAgendamento(reagendado, regras, agora);
