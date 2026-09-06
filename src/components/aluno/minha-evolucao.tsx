@@ -17,7 +17,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EvolucaoDosTreinos } from "@/components/aluno/evolucao-treinos";
 import { GraficoEvolucao } from "@/components/aluno/grafico-evolucao";
 
-type ChaveMetrica = "peso" | "percentualGordura" | "massaMagra" | "imc";
+type ChaveMetrica =
+  | "peso"
+  | "percentualGordura"
+  | "massaMuscular"
+  | "massaMagra"
+  | "imc"
+  | "aguaPercentual";
 
 const METRICAS: {
   chave: ChaveMetrica;
@@ -28,9 +34,14 @@ const METRICAS: {
 }[] = [
   { chave: "peso", rotulo: "Peso", unidade: " kg", menorMelhor: true },
   { chave: "percentualGordura", rotulo: "Gordura", unidade: "%", menorMelhor: true },
-  { chave: "massaMagra", rotulo: "Massa magra", unidade: " kg", menorMelhor: false },
+  { chave: "massaMuscular", rotulo: "Massa muscular", unidade: " kg", menorMelhor: false },
   { chave: "imc", rotulo: "IMC", unidade: "", menorMelhor: true },
+  { chave: "massaMagra", rotulo: "Massa magra", unidade: " kg", menorMelhor: false },
+  { chave: "aguaPercentual", rotulo: "Água", unidade: "%", menorMelhor: false },
 ];
+
+/** Cartões do topo: as quatro medidas que o aluno olha primeiro. */
+const PRINCIPAIS: ChaveMetrica[] = ["peso", "percentualGordura", "massaMuscular", "imc"];
 
 /** A área de evolução do aluno: como os treinos e o corpo vêm mudando. */
 export function MinhaEvolucao() {
@@ -97,7 +108,7 @@ function EvolucaoCorporal() {
       ) : (
         <>
           <section aria-label="Números atuais" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {METRICAS.map((item) => (
+            {METRICAS.filter((item) => PRINCIPAIS.includes(item.chave)).map((item) => (
               <CartaoMetrica
                 key={item.chave}
                 rotulo={item.rotulo}
@@ -241,10 +252,15 @@ const ROTULO_MEDIDA: Record<string, string> = {
 };
 
 function ItemAvaliacao({ avaliacao }: { avaliacao: MinhaAvaliacao }) {
+  // Só entra o que a balança mediu - nada é preenchido por conta própria.
   const numeros = [
     avaliacao.peso !== null ? `${avaliacao.peso.toLocaleString("pt-BR")} kg` : null,
     avaliacao.percentualGordura !== null ? `${avaliacao.percentualGordura}% gordura` : null,
+    avaliacao.massaMuscular !== null ? `${avaliacao.massaMuscular} kg músculo` : null,
     avaliacao.massaMagra !== null ? `${avaliacao.massaMagra} kg magra` : null,
+    avaliacao.aguaPercentual !== null ? `${avaliacao.aguaPercentual}% água` : null,
+    avaliacao.gorduraVisceral !== null ? `visceral ${avaliacao.gorduraVisceral}` : null,
+    avaliacao.metabolismoBasal !== null ? `${avaliacao.metabolismoBasal} kcal` : null,
     avaliacao.imc !== null ? `IMC ${avaliacao.imc}` : null,
   ].filter(Boolean) as string[];
 

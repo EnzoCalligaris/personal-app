@@ -167,10 +167,18 @@ export type MinhaAvaliacao = {
   id: string;
   data: string;
   peso: number | null;
-  percentualGordura: number | null;
-  massaMagra: number | null;
-  massaGorda: number | null;
   imc: number | null;
+  percentualGordura: number | null;
+  massaGorda: number | null;
+  massaMagra: number | null;
+  massaMuscular: number | null;
+  massaOssea: number | null;
+  aguaPercentual: number | null;
+  aguaLitros: number | null;
+  gorduraVisceral: number | null;
+  metabolismoBasal: number | null;
+  idadeMetabolica: number | null;
+  observacoes: string | null;
   medidas: Record<string, number> | null;
 };
 
@@ -187,8 +195,10 @@ export type MinhaEvolucaoResponse = {
   ultima: MinhaAvaliacao | null;
   peso: VariacaoMetrica | null;
   percentualGordura: VariacaoMetrica | null;
+  massaMuscular: VariacaoMetrica | null;
   massaMagra: VariacaoMetrica | null;
   imc: VariacaoMetrica | null;
+  aguaPercentual: VariacaoMetrica | null;
 };
 
 export type MeuFeedback = {

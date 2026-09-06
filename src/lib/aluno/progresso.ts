@@ -60,7 +60,10 @@ export async function meuProgresso(
   );
 
   // Um só levantamento de programação cobre frequência, aderência e sequência.
-  const datasDaJanela = intervaloDeDatas(inicioDaBusca, hoje);
+  // A janela vai até o fim da semana corrente: os dias que ainda vêm também
+  // estão programados, e a barra da semana precisa mostrá-los.
+  const fimDaJanela = somarDiasUTC(inicioSemanaAtual, 6);
+  const datasDaJanela = intervaloDeDatas(inicioDaBusca, fimDaJanela);
   const previstos = await treinosPrevistosPara(
     datasDaJanela.map((data) => ({ alunoId, data }))
   );

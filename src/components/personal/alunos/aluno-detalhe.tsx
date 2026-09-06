@@ -39,6 +39,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlunoFormModal } from "@/components/personal/alunos/aluno-form-modal";
 import { AlunoTreinosTab } from "@/components/personal/alunos/aluno-treinos-tab";
+import { AvaliacoesPainel } from "@/components/personal/avaliacoes/avaliacoes-painel";
 
 function idade(dataNascimento: string | null) {
   if (!dataNascimento) return null;
@@ -350,10 +351,9 @@ export function AlunoDetalhe({ alunoId }: { alunoId: string }) {
         </TabsContent>
 
         <TabsContent value="bioimpedancia" className="pt-4">
-          <EmptyState
-            icon={ActivityIcon}
-            title="Avaliações de bioimpedância"
-            description="O histórico de medidas e os gráficos de evolução deste aluno ficarão nesta aba."
+          <AvaliacoesPainel
+            alunoFixo={{ id: aluno.id, nome: aluno.nome }}
+            onMudou={refetch}
           />
         </TabsContent>
 

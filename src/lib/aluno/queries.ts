@@ -423,9 +423,17 @@ async function agendamentoEm(alunoId: string, data: Date): Promise<MeuAgendament
    Evolução
    ------------------------------------------------------------------------- */
 
+type CampoDeEvolucao =
+  | "peso"
+  | "percentualGordura"
+  | "massaMuscular"
+  | "massaMagra"
+  | "imc"
+  | "aguaPercentual";
+
 function variacao(
   avaliacoes: MinhaAvaliacao[],
-  campo: "peso" | "percentualGordura" | "massaMagra" | "imc"
+  campo: CampoDeEvolucao
 ): VariacaoMetrica | null {
   const comValor = avaliacoes.filter((item) => item[campo] !== null);
   if (comValor.length === 0) return null;
@@ -460,10 +468,18 @@ export async function minhaEvolucao(alunoId: string): Promise<MinhaEvolucaoRespo
     id: item.id,
     data: item.data.toISOString(),
     peso: item.peso,
-    percentualGordura: item.percentualGordura,
-    massaMagra: item.massaMagra,
-    massaGorda: item.massaGorda,
     imc: item.imc,
+    percentualGordura: item.percentualGordura,
+    massaGorda: item.massaGorda,
+    massaMagra: item.massaMagra,
+    massaMuscular: item.massaMuscular,
+    massaOssea: item.massaOssea,
+    aguaPercentual: item.aguaPercentual,
+    aguaLitros: item.aguaLitros,
+    gorduraVisceral: item.gorduraVisceral,
+    metabolismoBasal: item.metabolismoBasal,
+    idadeMetabolica: item.idadeMetabolica,
+    observacoes: item.observacoes,
     medidas: toMedidas(item.medidas),
   }));
 
@@ -472,8 +488,10 @@ export async function minhaEvolucao(alunoId: string): Promise<MinhaEvolucaoRespo
     ultima: avaliacoes.at(-1) ?? null,
     peso: variacao(avaliacoes, "peso"),
     percentualGordura: variacao(avaliacoes, "percentualGordura"),
+    massaMuscular: variacao(avaliacoes, "massaMuscular"),
     massaMagra: variacao(avaliacoes, "massaMagra"),
     imc: variacao(avaliacoes, "imc"),
+    aguaPercentual: variacao(avaliacoes, "aguaPercentual"),
   };
 }
 

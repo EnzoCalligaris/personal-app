@@ -361,11 +361,21 @@ model Avaliacao {
   alunoId           String
   aluno             AlunoProfile    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   data              DateTime        @default(now())
-  peso              Float?
-  percentualGordura Float?
-  massaMagra        Float?
-  massaGorda        Float?
+  // Nenhuma medida é obrigatória: cada balança entrega um conjunto diferente,
+  // e o que o equipamento não mediu fica nulo em vez de virar zero.
+  peso              Float? // kg
   imc               Float?
+  percentualGordura Float? // %
+  massaGorda        Float? // kg
+  massaMagra        Float? // kg
+  massaMuscular     Float? // kg (massa muscular esquelética)
+  massaOssea        Float? // kg
+  aguaPercentual    Float? // % do peso
+  aguaLitros        Float? // litros
+  gorduraVisceral   Float? // nível informado pela balança
+  metabolismoBasal  Int? // kcal/dia
+  idadeMetabolica   Int? // anos
+  observacoes       String?
   medidas           Json? // { peito, cintura, quadril, braco, coxa, ... }
   fotos             String[]        @default([])
 

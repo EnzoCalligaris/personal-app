@@ -122,6 +122,7 @@ src/components/ui/         Componentes shadcn/ui (Base UI)
 src/lib/auth/session.ts    Resolve o usuário autenticado + role (AuthContext)
 src/lib/auth/guards.ts     requireAuth/requirePersonal/requireAluno + regras de ownership
 src/lib/agenda/            Horários de trabalho, geração de slots e regras de conflito
+src/lib/avaliacoes/        Avaliações de bioimpedância (medidas opcionais + variações)
 src/lib/aluno/             Consultas da área do aluno (escopadas pelo perfil da sessão)
 src/lib/programacoes/      Programação semanal + resolução do treino previsto por data
 src/lib/prisma.ts          Cliente Prisma (adapter-pg)
@@ -135,6 +136,51 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > anteriores (ex.: `middleware.ts` → `proxy.ts` com export `proxy`; conexão do banco sai do
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
+
+## Avaliações de bioimpedância (Fase 14)
+
+O Personal registra as medidas em **`/personal/avaliacoes`** (ou direto na aba **Bioimpedância** da
+ficha do aluno, que é o mesmo painel travado em um aluno). O aluno acompanha em **Evolução → Corpo**.
+
+| Endpoint | O que faz |
+| -------- | --------- |
+| `GET /api/personal/avaliacoes?alunoId=&q=` | Lista as avaliações do Personal, com filtro por aluno e busca por nome |
+| `POST /api/personal/avaliacoes` | Registra uma avaliação |
+| `GET /api/personal/avaliacoes/[id]` | Abre uma avaliação |
+| `PATCH /api/personal/avaliacoes/[id]` | Corrige medidas, data ou observações |
+| `DELETE /api/personal/avaliacoes/[id]` | Exclui |
+
+Campos gravados (todos opcionais, exceto o aluno): data, peso, IMC, percentual de gordura, massa de
+gordura, massa muscular, massa magra, massa óssea, água corporal em % e em litros, gordura visceral,
+metabolismo basal, idade metabólica, circunferências (peito, cintura, quadril, braço, coxa,
+panturrilha) e observações.
+
+**Nada é obrigatório porque cada balança mede um conjunto diferente.** O formulário manda em branco
+o que não foi medido, e o schema converte isso em `null` — o campo fica *sem valor*, nunca zero. Na
+tela, só aparecem as medidas que existem: uma avaliação registrada apenas com peso mostra só peso.
+
+Outras decisões:
+
+- Cada avaliação carrega a **variação** de peso, gordura e músculo em relação à anterior **do mesmo
+  aluno** (verde quando a mudança vai na direção do objetivo, âmbar quando não).
+- **Corrigir é editar**: o `PATCH` altera só os campos enviados, e mandar `null` limpa um campo.
+  Excluir é para o registro que não deveria existir — a tela avisa que ele sai também dos gráficos.
+- Valores absurdos são recusados (peso 900 kg, gordura 150%), com a mensagem no campo.
+- Isolamento: avaliação ou aluno de outro Personal responde **404**, e o aluno só enxerga as próprias.
+
+### Evolução do aluno
+
+Em `/aluno/evolucao`, a aba **Corpo** mostra peso, gordura, **massa muscular** e IMC em destaque, o
+gráfico da métrica escolhida (peso, gordura, massa muscular, IMC, massa magra ou água) e o histórico
+completo com tudo o que foi medido, incluindo as circunferências.
+
+**Os gráficos nunca inventam dados**: cada ponto é uma avaliação registrada. Métrica sem nenhum
+registro não aparece no seletor, e sem avaliação nenhuma a aba inteira vira um estado vazio
+explicando que os números aparecem depois da primeira bioimpedância.
+
+Cobertura: `tests/avaliacoes-http.test.ts` (17 testes) — autorização, criação com poucos campos,
+completa e sem nenhuma medida, recusa de valores absurdos, listagem com filtro e busca, correção
+(inclusive limpar campo), exclusão, isolamento entre Personals e o que o aluno recebe na evolução.
 
 ## Agendamento pelo aluno (Fase 13)
 
