@@ -347,7 +347,7 @@ function BarraDeProgresso({
   const percentual = total === 0 ? 0 : Math.round((feitos / total) * 100);
 
   return (
-    <div className="sticky top-14 z-20 -mx-4 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-lg sm:-mx-6 sm:px-6 md:top-0 md:mx-0 md:rounded-2xl md:border md:px-4 md:shadow-soft">
+    <div className="sticky top-14 z-20 -mx-4 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-lg sm:-mx-6 sm:px-6 md-alto:top-0 md-alto:mx-0 md-alto:rounded-2xl md-alto:border md-alto:px-4 md-alto:shadow-soft">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon-sm" aria-label="Sair do treino" onClick={onSair}>
           <XIcon />
@@ -454,7 +454,9 @@ function ExercicioAtual({
 
   return (
     <article className="flex animate-fade-up flex-col gap-4 overflow-hidden rounded-3xl bg-card shadow-soft ring-1 ring-border">
-      <div className="relative aspect-[16/10] w-full bg-gradient-to-br from-primary/15 to-muted">
+      {/* O teto em vh segura a imagem no celular deitado, onde a proporção
+          16/10 sozinha ocuparia mais que a altura toda da tela. */}
+      <div className="relative aspect-[16/10] max-h-[38vh] w-full bg-gradient-to-br from-primary/15 to-muted">
         {item.exercicio.imagemUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={item.exercicio.imagemUrl} alt="" className="size-full object-cover" />
@@ -612,7 +614,7 @@ function AcoesDaSessao({
   onPularDescanso: () => void;
 }) {
   return (
-    <div className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-lg md:static md:rounded-2xl md:border md:px-4 md:shadow-soft">
+    <div className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-lg md-alto:static md-alto:rounded-2xl md-alto:border md-alto:px-4 md-alto:shadow-soft">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2">
         {descansoRestante !== null ? (
           <Descanso

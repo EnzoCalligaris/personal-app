@@ -14,11 +14,28 @@ import { chromium, type Browser, type Page } from "playwright";
 const BASE_URL = process.argv[2] ?? "http://127.0.0.1:3200";
 const OUT_DIR = process.argv[3] ?? path.resolve(process.cwd(), ".auditoria-ui");
 
+/** claro | escuro - o tema muda cor e contraste, não o layout. */
+const TEMA = (process.env.UI_TEMA ?? "claro") as "claro" | "escuro";
+
+/**
+ * demo: os dados de `npm run db:seed`, curtos e arrumados.
+ * estresse: nomes longos, palavra sem espaço, 12 exercícios, agenda cheia -
+ * é onde o layout quebra (`npm run ui:estresse`).
+ */
+const PERFIL = (process.env.UI_PERFIL ?? "demo") as "demo" | "estresse";
+
+const CONTAS = {
+  demo: { personal: "personal1@teste.com", aluno: "aluno1@teste.com" },
+  estresse: { personal: "estresse-personal@example.com", aluno: "estresse-aluno@example.com" },
+}[PERFIL];
+
 const TELAS = [
   { nome: "smartphone", width: 390, height: 844, toque: true },
   { nome: "tablet", width: 820, height: 1180, toque: true },
   { nome: "notebook", width: 1280, height: 800, toque: false },
   { nome: "desktop", width: 1920, height: 1080, toque: false },
+  // Celular deitado: o caso do aparelho apoiado no chão durante a série.
+  { nome: "celular-deitado", width: 844, height: 390, toque: true },
 ] as const;
 
 type Achado = {
@@ -116,8 +133,12 @@ async function visitar(page: Page, tela: string, rota: string, arquivo: string, 
   page.on("pageerror", onPageError);
 
   try {
-    await page.goto(`${BASE_URL}${rota}`, { waitUntil: "networkidle", timeout: 30000 });
-    await page.waitForTimeout(500); // deixa a animação de entrada terminar
+    // networkidle às vezes não chega por uma requisição lenta isolada; o
+    // fallback evita que isso vire um "achado" que não existe.
+    await page
+      .goto(`${BASE_URL}${rota}`, { waitUntil: "networkidle", timeout: 20000 })
+      .catch(() => page.goto(`${BASE_URL}${rota}`, { waitUntil: "domcontentloaded", timeout: 20000 }));
+    await page.waitForTimeout(900); // deixa carregar os dados e a animação terminar
 
     const overflow = (await page.evaluate(MEDIR_OVERFLOW)) as {
       documentoVaza: boolean;
@@ -259,7 +280,12 @@ async function run() {
         deviceScaleFactor: 1,
         isMobile: tela.toque,
         hasTouch: tela.toque,
+        colorScheme: TEMA === "escuro" ? "dark" : "light",
       });
+      // next-themes lê a preferência do localStorage.
+      await context.addInitScript(
+        `window.localStorage.setItem("theme", "${TEMA === "escuro" ? "dark" : "light"}")`
+      );
       const page = await context.newPage();
       const prefixo = (nome: string) => path.join(OUT_DIR, `${tela.nome}-${nome}.png`);
       const eCelular = tela.nome === "smartphone";
@@ -270,7 +296,7 @@ async function run() {
         console.log(`  ✓ ${rota}`);
       }
 
-      await entrar(page, "personal1@teste.com");
+      await entrar(page, CONTAS.personal);
       const doPersonal = await idsDoPersonal(page);
 
       const rotasPersonal = [
@@ -293,7 +319,7 @@ async function run() {
       await abrirSobreposicoes(page, prefixo, tela.nome);
 
       await sair(page);
-      await entrar(page, "aluno1@teste.com");
+      await entrar(page, CONTAS.aluno);
       const doAluno = await idsDoAluno(page);
 
       const rotasAluno = [
@@ -329,7 +355,7 @@ async function run() {
 
   const porTipo = (tipo: Achado["tipo"]) => achados.filter((a) => a.tipo === tipo);
 
-  console.log(`\n\n================ RELATÓRIO ================`);
+  console.log(`\n\n======== RELATÓRIO · tema ${TEMA} · dados ${PERFIL} ========`);
   for (const tipo of ["overflow", "erro", "alvo"] as const) {
     const lista = porTipo(tipo);
     const titulo = { overflow: "OVERFLOW HORIZONTAL", erro: "ERROS", alvo: "ALVOS DE TOQUE PEQUENOS (celular)" }[tipo];

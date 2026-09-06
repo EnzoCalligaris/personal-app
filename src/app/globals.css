@@ -4,6 +4,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Largura de tablet E altura suficiente. O celular deitado passa em md pela
+   largura, mas não tem altura para o layout de tela grande. */
+@custom-variant md-alto (@media (min-width: 48rem) and (min-height: 37.5rem));
+
 /* =========================================================================
    Identidade visual "Pulse"
    - Neutros grafite levemente frios + verde-elétrico como cor de energia.
@@ -242,6 +246,12 @@
     @apply bg-background text-foreground;
     font-feature-settings: "cv11", "ss01";
     text-rendering: optimizeLegibility;
+
+    /* Rede de proteção: nome de exercício digitado sem espaço, e-mail longo
+       ou URL não podem empurrar a página inteira - sem isto uma palavra de
+       50 caracteres alarga o documento e arrasta junto a barra fixa. Só age
+       quando a palavra não caberia; não afeta `truncate` nem `nowrap`. */
+    overflow-wrap: break-word;
   }
 
   button:not(:disabled),

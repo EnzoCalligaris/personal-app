@@ -17,7 +17,8 @@
     "supabase:status": "supabase status",
     "test": "vitest run",
     "screenshots": "tsx scripts/screenshots.ts",
-    "ui:audit": "tsx scripts/auditoria-ui.ts"
+    "ui:audit": "tsx scripts/auditoria-ui.ts",
+    "ui:estresse": "tsx scripts/seed-ui-estresse.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
