@@ -8,7 +8,6 @@ import {
   CalendarDaysIcon,
   CameraIcon,
   DumbbellIcon,
-  MessageSquareIcon,
   PencilIcon,
   PowerIcon,
   TrendingUpIcon,
@@ -40,6 +39,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlunoFormModal } from "@/components/personal/alunos/aluno-form-modal";
 import { AlunoTreinosTab } from "@/components/personal/alunos/aluno-treinos-tab";
 import { AvaliacoesPainel } from "@/components/personal/avaliacoes/avaliacoes-painel";
+import { FeedbacksPainel } from "@/components/personal/feedbacks/feedbacks-painel";
 
 function idade(dataNascimento: string | null) {
   if (!dataNascimento) return null;
@@ -358,11 +358,7 @@ export function AlunoDetalhe({ alunoId }: { alunoId: string }) {
         </TabsContent>
 
         <TabsContent value="feedbacks" className="pt-4">
-          <EmptyState
-            icon={MessageSquareIcon}
-            title="Feedbacks do Personal"
-            description="Os comentários que você registrar para este aluno - por avaliação ou avulsos - aparecerão aqui."
-          />
+          <FeedbacksPainel alunoFixo={{ id: aluno.id, nome: aluno.nome }} />
         </TabsContent>
       </Tabs>
 

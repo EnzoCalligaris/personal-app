@@ -314,7 +314,23 @@ async function seedConteudoDoAluno() {
         },
       ],
     });
-    criados += 2;
+    // O aluno recebe o aviso interno junto com o comentário.
+    const usuarioDaAna = await prisma.alunoProfile.findUniqueOrThrow({
+      where: { id: ana.id },
+      select: { userId: true },
+    });
+    await prisma.notificacao.create({
+      data: {
+        userId: usuarioDaAna.userId,
+        tipo: "NOVO_FEEDBACK",
+        titulo: "Novo feedback do seu Personal",
+        mensagem:
+          "Ótima evolução na composição corporal: -2,1 kg de gordura mantendo a massa magra.",
+        link: "/aluno/feedback",
+      },
+    });
+
+    criados += 3;
   }
 
   // Algumas sessões passadas com a carga subindo, para o histórico e a

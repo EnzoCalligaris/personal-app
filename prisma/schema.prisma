@@ -386,6 +386,8 @@ model Avaliacao {
   @@map("avaliacoes")
 }
 
+/// Comentário do Personal para um aluno. O autor é sempre o Personal - o
+/// aluno lê e o sistema marca quando ele leu.
 model Feedback {
   id          String          @id @default(uuid())
   personalId  String
@@ -395,7 +397,10 @@ model Feedback {
   avaliacaoId String?
   avaliacao   Avaliacao?      @relation(fields: [avaliacaoId], references: [id], onDelete: SetNull)
   texto       String
+  /// Quando o aluno abriu o feedback. Nulo = ainda não lido.
+  lidoEm      DateTime?
   createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt @default(now())
 
   @@index([personalId])
   @@index([alunoId, createdAt])
@@ -415,5 +420,6 @@ model Notificacao {
   createdAt DateTime        @default(now())
 
   @@index([userId, lida])
+  @@index([userId, createdAt])
   @@map("notificacoes")
 }

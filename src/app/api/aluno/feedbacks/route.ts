@@ -9,5 +9,8 @@ export async function GET() {
   if (!auth.ok) return auth.response;
 
   const feedbacks = await meusFeedbacks(auth.ctx.alunoProfileId!);
-  return NextResponse.json({ feedbacks });
+  return NextResponse.json({
+    feedbacks,
+    naoLidos: feedbacks.filter((feedback) => !feedback.lido).length,
+  });
 }

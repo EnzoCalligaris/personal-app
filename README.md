@@ -123,6 +123,8 @@ src/lib/auth/session.ts    Resolve o usuário autenticado + role (AuthContext)
 src/lib/auth/guards.ts     requireAuth/requirePersonal/requireAluno + regras de ownership
 src/lib/agenda/            Horários de trabalho, geração de slots e regras de conflito
 src/lib/avaliacoes/        Avaliações de bioimpedância (medidas opcionais + variações)
+src/lib/feedbacks/         Comentários do Personal para os alunos
+src/lib/notificacoes/      Notificações internas (campainha da barra superior)
 src/lib/aluno/             Consultas da área do aluno (escopadas pelo perfil da sessão)
 src/lib/programacoes/      Programação semanal + resolução do treino previsto por data
 src/lib/prisma.ts          Cliente Prisma (adapter-pg)
@@ -136,6 +138,42 @@ tests/                     Testes automatizados (schema, guards, auth HTTP end-t
 > anteriores (ex.: `middleware.ts` → `proxy.ts` com export `proxy`; conexão do banco sai do
 > `schema.prisma` e vai para `prisma.config.ts`). Consulte `node_modules/next/dist/docs` e
 > https://pris.ly/d/major-version-upgrade para detalhes ao atualizar dependências.
+
+## Feedback e notificações (Fase 15)
+
+O Personal escreve comentários na aba **Feedbacks** da ficha do aluno; o aluno lê em
+**`/aluno/feedback`**, com o comentário mais recente em destaque e o histórico logo abaixo.
+
+| Endpoint | O que faz |
+| -------- | --------- |
+| `GET /api/personal/feedbacks?alunoId=&q=` | Comentários do Personal, com filtro por aluno e busca no texto |
+| `POST /api/personal/feedbacks` | Escreve o comentário e notifica o aluno |
+| `PATCH /api/personal/feedbacks/[id]` | Corrige o texto |
+| `DELETE /api/personal/feedbacks/[id]` | Exclui |
+| `GET /api/aluno/feedbacks` | Comentários do próprio aluno + quantos não lidos |
+| `POST /api/aluno/feedbacks/lidos` | Marca como lidos ao abrir a tela |
+| `GET /api/notificacoes` | Notificações internas do usuário (Personal ou aluno) |
+| `PATCH /api/notificacoes/[id]` · `POST /api/notificacoes/lidas` | Marca uma ou todas como lidas |
+
+Cada feedback guarda **autor** (o Personal que escreveu), **aluno**, **data**, **texto** e o
+**status de leitura** (`lidoEm`, nulo enquanto o aluno não abriu). Opcionalmente fica preso a uma
+avaliação do aluno — útil para comentar uma bioimpedância específica.
+
+- **Só para os próprios alunos**: escrever para aluno de outro Personal responde **404**, e
+  vincular uma avaliação que não é daquele aluno responde 400. Editar ou excluir comentário alheio
+  também dá 404.
+- **Leitura de verdade**: abrir a tela do aluno marca os comentários como lidos, e o Personal passa
+  a ver "Lido" na lista (com um contador de não lidos no topo). Corrigir o texto não reabre o
+  status.
+- **Notificação interna**: criar um feedback grava uma `Notificacao` do tipo `NOVO_FEEDBACK` para o
+  usuário do aluno, com link para `/aluno/feedback`. Ela aparece na **campainha da barra superior**,
+  que mostra o marcador de não lidas, a lista das últimas 20 e o "marcar lidas". Marcar os feedbacks
+  como lidos silencia junto as notificações de feedback — o sino não continua avisando algo que já
+  foi lido. Cada usuário só lê e marca as próprias (404 para as de outro).
+
+Cobertura: `tests/feedbacks-http.test.ts` (18 testes) — autorização, criação com notificação,
+vínculo com avaliação, validações, listagem com filtro e busca, o que o aluno vê, marcar como lido
+(refletindo no Personal e no sino), edição, exclusão e o isolamento entre Personals e entre alunos.
 
 ## Avaliações de bioimpedância (Fase 14)
 
@@ -403,7 +441,7 @@ O início abre com **"Olá, [Nome] 👋"** e mostra, nesta ordem:
 | `GET /api/aluno/agenda` | Agendamentos próximos e anteriores (ver [Agendamento pelo aluno](#agendamento-pelo-aluno-fase-13)) |
 | `GET /api/aluno/evolucao` | Avaliações em ordem cronológica + variações por métrica |
 | `GET /api/aluno/progresso` | Frequência, sequência e evolução de carga por exercício |
-| `GET /api/aluno/feedbacks` | Comentários do Personal para este aluno |
+| `GET /api/aluno/feedbacks` | Comentários do Personal (ver [Feedback e notificações](#feedback-e-notificações-fase-15)) |
 | `GET/PATCH /api/aluno/perfil` | Dados do próprio aluno (nome, telefone, nascimento, altura, objetivo) |
 
 Como o isolamento é garantido:

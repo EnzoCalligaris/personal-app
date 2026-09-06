@@ -1,9 +1,7 @@
 "use client";
 
-import { BellIcon } from "lucide-react";
-
 import { Brand } from "@/components/layout/brand";
-import { Button } from "@/components/ui/button";
+import { Notificacoes } from "@/components/layout/notificacoes";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu, type SessionUser } from "@/components/layout/user-menu";
 
@@ -20,16 +18,7 @@ export function TopBar({ user, rootHref }: { user: SessionUser; rootHref: string
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
         <ThemeToggle />
 
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Notificações"
-          className="relative text-muted-foreground hover:text-foreground"
-        >
-          <BellIcon />
-          {/* Marcador de não lidas (visual - a lógica entra na fase de notificações) */}
-          <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background" />
-        </Button>
+        <Notificacoes />
 
         <div className="md:hidden">
           <UserMenu user={user} />

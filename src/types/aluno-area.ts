@@ -208,10 +208,13 @@ export type MeuFeedback = {
   personal: MeuPersonal | null;
   /** Avaliação a que o feedback está preso, quando houver. */
   avaliacao: { id: string; data: string } | null;
+  /** O aluno já abriu este comentário. */
+  lido: boolean;
 };
 
 export type MeusFeedbacksResponse = {
   feedbacks: MeuFeedback[];
+  naoLidos: number;
 };
 
 export type MeuPerfil = {

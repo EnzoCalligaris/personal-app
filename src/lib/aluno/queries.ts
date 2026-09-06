@@ -518,7 +518,29 @@ export async function meusFeedbacks(alunoId: string, limite = 30): Promise<MeuFe
     avaliacao: item.avaliacao
       ? { id: item.avaliacao.id, data: item.avaliacao.data.toISOString() }
       : null,
+    lido: item.lidoEm !== null,
   }));
+}
+
+/**
+ * Marca como lidos os comentários que o aluno acabou de abrir - e silencia as
+ * notificações de feedback junto, para o sino não continuar avisando algo que
+ * ele já leu.
+ */
+export async function marcarFeedbacksLidos(alunoId: string, userId: string): Promise<number> {
+  const { count } = await prisma.feedback.updateMany({
+    where: { alunoId, lidoEm: null },
+    data: { lidoEm: new Date() },
+  });
+
+  if (count > 0) {
+    await prisma.notificacao.updateMany({
+      where: { userId, tipo: "NOVO_FEEDBACK", lida: false },
+      data: { lida: true },
+    });
+  }
+
+  return count;
 }
 
 /* -------------------------------------------------------------------------
