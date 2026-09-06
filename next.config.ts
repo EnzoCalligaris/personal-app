@@ -24,6 +24,15 @@ const SEGURANCA = [
 ];
 
 const nextConfig: NextConfig = {
+  // Não anunciar o framework e a versão em toda resposta.
+  poweredByHeader: false,
+
+  /**
+   * Empacota o servidor com só as dependências que ele usa, em
+   * `.next/standalone` - é o que o Dockerfile copia. Não muda `next start`.
+   */
+  output: "standalone",
+
   async headers() {
     return [
       { source: "/:path*", headers: SEGURANCA },

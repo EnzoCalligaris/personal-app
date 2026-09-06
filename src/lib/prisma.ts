@@ -1,11 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
+import { exigir } from "@/lib/env";
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg({ connectionString: exigir("DATABASE_URL") });
 
 /**
  * Com `PRISMA_LOG_QUERIES=1`, cada consulta vira um evento - é assim que os

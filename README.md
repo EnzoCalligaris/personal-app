@@ -32,7 +32,7 @@ projeto na nuvem - tudo roda na sua máquina.
    Supabase):
    ```bash
    npm run db:generate
-   npm run db:migrate deploy
+   npm run db:deploy
    ```
 4. Crie os usuários de teste (2 Personals, 3 Alunos - veja a tabela abaixo):
    ```bash
@@ -47,8 +47,7 @@ Abra [http://localhost:3000](http://localhost:3000). O Supabase Studio local fic
 `http://127.0.0.1:54323` e a caixa de e-mail de teste (recuperação de senha etc.) em
 `http://127.0.0.1:54324`.
 
-Para produção, aponte as mesmas variáveis para um projeto Supabase real (Settings → API / Database)
-em vez da stack local.
+Para produção, veja a seção **Deploy em produção**.
 
 ### Usuários de teste (`npm run db:seed`)
 
@@ -79,8 +78,9 @@ autenticação fica inativa) e aponte só o banco:
 DATABASE_URL="postgresql://personal:personal@localhost:55432/personal_app"
 DIRECT_URL="postgresql://personal:personal@localhost:55432/personal_app"
 ```
-Nesse modo a migration que vincula `users` a `auth.users` (Supabase) falha, então use
-`npm run db:push` em vez de `db:migrate` e remova essa constraint do schema antes.
+As migrations aplicam normalmente (`npm run db:deploy`): a primeira delas cria um `auth.users`
+mínimo quando esse schema não existe, que é o caso de um Postgres puro. O que não funciona nesse
+modo é login, cadastro e upload de imagem - tudo que depende do Supabase Auth e do Storage.
 
 ## Scripts
 
@@ -92,6 +92,7 @@ Nesse modo a migration que vincula `users` a `auth.users` (Supabase) falha, ent�
 | `npm run lint`       | ESLint                                       |
 | `npm run db:generate`| Gera o Prisma Client a partir do schema      |
 | `npm run db:migrate` | Cria/aplica migrations em desenvolvimento    |
+| `npm run db:deploy`  | Aplica as migrations pendentes (produção)    |
 | `npm run db:push`    | Sincroniza o schema com o banco sem migration|
 | `npm run db:studio`  | Abre o Prisma Studio                         |
 | `npm run db:seed`    | Cria os usuários de teste (Supabase Auth + perfis) |
@@ -156,6 +157,87 @@ para apontar a um treino do outro Personal.
 
 Daí a convenção destes testes: em toda tentativa de escrita indevida, **conferir o efeito no
 banco, não só o status da resposta**. Uma rota pode gravar e só então responder 404.
+
+## Deploy em produção
+
+O banco e a autenticação são o Supabase gerenciado; o que sobe é só o servidor Next.
+
+### 1. Variáveis de ambiente
+
+As mesmas de `.env.example`, apontando para o projeto real. Duas exigem atenção:
+
+- **`DATABASE_URL`** deve ser a de **connection pooling** (Settings → Database → Connection
+  pooling, porta 6543). O servidor abre conexões por requisição; sem o pooler o limite do
+  Postgres estoura.
+- **`DIRECT_URL`** é a conexão direta (porta 5432), usada só pelo Prisma CLI — migrations não
+  passam pelo pooler.
+
+`SUPABASE_SERVICE_ROLE_KEY` é secreta e só é lida no servidor. As `NEXT_PUBLIC_*` são embutidas
+no bundle **em tempo de build**: precisam existir na hora do `npm run build`, não só em execução.
+
+Faltando qualquer uma, a aplicação para de subir com uma mensagem dizendo qual é e onde pegar o
+valor (`src/lib/env.ts`) — em vez de quebrar mais adiante, dentro de uma requisição.
+
+### 2. Migrations
+
+Passo separado do start da aplicação, **antes** de publicar a nova versão:
+
+```bash
+npm run db:deploy      # prisma migrate deploy - só aplica o que falta, nunca recria
+```
+
+Rodar no start do contêiner faria duas réplicas migrarem o mesmo banco ao mesmo tempo.
+
+O histórico aplica limpo num banco vazio (verificado): a primeira migration cria um `auth.users`
+mínimo apenas quando o schema não existe, então nada colide com o `auth` real do Supabase.
+
+### 3. Build e execução
+
+```bash
+npm ci
+npm run build
+npm start
+```
+
+`next build` gera também `.next/standalone`, um servidor com apenas as dependências que ele usa.
+
+### 4. Docker
+
+```bash
+docker build -t personal-app \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co" \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="..." .
+
+docker run --rm -p 3000:3000 --env-file .env.producao personal-app
+```
+
+A imagem roda como usuário sem privilégios, não embute segredo nenhum (só as duas variáveis
+públicas, que precisam entrar no bundle) e não executa migrations.
+
+### 5. Antes de publicar
+
+- [ ] `npm test` passando (377 testes)
+- [ ] `npm run lint` limpo
+- [ ] `.env` de produção preenchido, `SUPABASE_SERVICE_ROLE_KEY` só no servidor
+- [ ] `npm run db:deploy` aplicado
+- [ ] **Não** rodar `npm run db:seed` nem `npm run ui:estresse` — criam contas com senha pública
+      e ficam bloqueados fora de um banco local
+- [ ] HTTPS na frente (o `Strict-Transport-Security` e o cookie `Secure` dependem disso)
+- [ ] Limite de tentativas de login na borda, se o provedor oferecer (o Supabase Auth já tem o
+      dele; a aplicação não implementa um próprio)
+
+### O que já vem configurado
+
+| Item | Onde |
+| --- | --- |
+| Cabeçalhos de segurança e CSP | `next.config.ts` |
+| `Cache-Control: private, no-store` nas APIs | `next.config.ts` |
+| Sem `X-Powered-By` | `poweredByHeader: false` |
+| Cookie de sessão `HttpOnly`/`Secure`/`SameSite` | `src/lib/supabase/cookies.ts` |
+| CORS fechado (nenhuma origem liberada) | padrão do Next, verificado em teste |
+| Proxy fecha o acesso se faltar configuração em produção | `src/lib/supabase/middleware.ts` |
+| Erro de servidor não vaza detalhe para a tela | rotas de API + `error.tsx`/`global-error.tsx` |
+| Seeds bloqueados fora de banco local | `scripts/guard-seed.ts` |
 
 ## Estrutura
 

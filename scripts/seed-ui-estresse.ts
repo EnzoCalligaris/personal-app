@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { garantirBancoLocal } from "./guard-seed";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
@@ -261,6 +262,8 @@ async function criar() {
 }
 
 async function main() {
+  garantirBancoLocal();
+
   if (process.argv.includes("limpar")) await limpar();
   else await criar();
   await prisma.$disconnect();

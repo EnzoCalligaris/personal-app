@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { cookieDeSessao } from "@/lib/supabase/cookies";
+import { emProducao } from "@/lib/env";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -9,8 +10,17 @@ export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Autenticação ainda não configurada (Supabase entra na Fase 2) - não bloquear o app.
   if (!supabaseUrl || !supabaseAnonKey) {
+    // Em produção isto é falha de configuração, não modo de trabalho: seguir
+    // adiante deixaria toda página sem checagem de sessão e de role. Falha
+    // fechado, com a mensagem apontando o que falta.
+    if (emProducao) {
+      throw new Error(
+        "NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY são obrigatórias em produção. Veja .env.example."
+      );
+    }
+    // Em desenvolvimento dá para trabalhar só no banco, sem autenticação
+    // (ver README, "Alternativa: só o banco").
     return supabaseResponse;
   }
 

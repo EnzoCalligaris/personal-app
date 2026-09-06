@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { garantirBancoLocal } from "./guard-seed";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { prisma } from "../src/lib/prisma";
 
@@ -46,6 +47,8 @@ async function findAuthUserIdByEmail(admin: AdminClient, email: string) {
 }
 
 async function main() {
+  garantirBancoLocal();
+
   const admin = createAdminClient();
   const personalIdByEmail = new Map<string, string>();
 

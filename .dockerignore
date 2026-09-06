@@ -1,0 +1,28 @@
+# Nada aqui deve entrar na imagem.
+
+node_modules
+.next
+.git
+.github
+
+# Segredos: a imagem recebe as variáveis em tempo de execução (--env-file),
+# nunca embutidas.
+.env
+.env.*
+!.env.example
+
+# Artefatos locais de desenvolvimento
+.screenshots
+.auditoria-*
+supabase/.branches
+supabase/.temp
+coverage
+*.log
+
+# Ferramentas que não fazem parte do servidor
+tests
+scripts/auditoria-ui.ts
+scripts/screenshots.ts
+scripts/seed-ui-estresse.ts
+vitest.config.mts
+README.md
