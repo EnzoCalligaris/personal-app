@@ -348,6 +348,87 @@ describe("Treinos - listar e filtrar", () => {
   });
 });
 
+describe("Treinos - editar a ficha", () => {
+  it("edita nome e observações sem tocar nos exercícios", async () => {
+    const antes = (await (
+      await get(`/api/personal/treinos/${treinoId}`, cookiePersonal)
+    ).json()) as TreinoDetalhe;
+
+    const res = await fetch(
+      `${BASE_URL}/api/personal/treinos/${treinoId}`,
+      comCookie(cookiePersonal, {
+        method: "PATCH",
+        body: JSON.stringify({
+          nome: "Treino A · Superior (revisado)",
+          observacoes: "Aquecer 5 minutos antes.",
+        }),
+      })
+    );
+    const depois = (await res.json()) as TreinoDetalhe;
+
+    expect(res.status).toBe(200);
+    expect(depois.nome).toBe("Treino A · Superior (revisado)");
+    expect(depois.observacoes).toBe("Aquecer 5 minutos antes.");
+    expect(depois.exercicios).toHaveLength(antes.exercicios.length);
+    expect(depois.aluno.id).toBe(antes.aluno.id);
+  });
+
+  it("edita um campo de cada vez, preservando o resto", async () => {
+    const res = await fetch(
+      `${BASE_URL}/api/personal/treinos/${treinoId}`,
+      comCookie(cookiePersonal, { method: "PATCH", body: JSON.stringify({ nome: "Treino A" }) })
+    );
+    const treino = (await res.json()) as TreinoDetalhe;
+
+    expect(treino.nome).toBe("Treino A");
+    expect(treino.observacoes).toBe("Aquecer 5 minutos antes.");
+  });
+
+  it("limpa as observações com null e valida nome vazio", async () => {
+    const limpar = await fetch(
+      `${BASE_URL}/api/personal/treinos/${treinoId}`,
+      comCookie(cookiePersonal, { method: "PATCH", body: JSON.stringify({ observacoes: null }) })
+    );
+    expect(((await limpar.json()) as TreinoDetalhe).observacoes).toBeNull();
+
+    const invalido = await fetch(
+      `${BASE_URL}/api/personal/treinos/${treinoId}`,
+      comCookie(cookiePersonal, { method: "PATCH", body: JSON.stringify({ nome: "A" }) })
+    );
+    expect(invalido.status).toBe(400);
+
+    // Nada mudou depois da recusa.
+    const atual = (await (
+      await get(`/api/personal/treinos/${treinoId}`, cookiePersonal)
+    ).json()) as TreinoDetalhe;
+    expect(atual.nome).toBe("Treino A");
+  });
+
+  it("transfere o treino para outro aluno do mesmo Personal", async () => {
+    const res = await fetch(
+      `${BASE_URL}/api/personal/treinos/${treinoId}`,
+      comCookie(cookiePersonal, {
+        method: "PATCH",
+        body: JSON.stringify({ alunoId: bruno.alunoProfile.id }),
+      })
+    );
+    const treino = (await res.json()) as TreinoDetalhe;
+
+    expect(res.status).toBe(200);
+    expect(treino.aluno.id).toBe(bruno.alunoProfile.id);
+
+    // E volta para a Ana, para os testes seguintes.
+    const volta = await fetch(
+      `${BASE_URL}/api/personal/treinos/${treinoId}`,
+      comCookie(cookiePersonal, {
+        method: "PATCH",
+        body: JSON.stringify({ alunoId: ana.alunoProfile.id }),
+      })
+    );
+    expect(((await volta.json()) as TreinoDetalhe).aluno.id).toBe(ana.alunoProfile.id);
+  });
+});
+
 describe("Treinos - desativar e excluir", () => {
   it("desativa e reativa o treino", async () => {
     const desativar = await fetch(

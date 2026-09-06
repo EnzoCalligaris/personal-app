@@ -512,7 +512,9 @@ describe("Personal acessando dados de outro Personal", () => {
       { metodo: "DELETE", caminho: `/api/personal/exercicios/${alvoB.exercicioId}` },
       { metodo: "PATCH", caminho: `/api/personal/programacoes/${alvoB.programacaoId}`, corpo: { nome: "Invadido" } },
       { metodo: "DELETE", caminho: `/api/personal/programacoes/${alvoB.programacaoId}` },
-      { metodo: "PUT", caminho: `/api/personal/programacoes/${alvoB.programacaoId}/dias/SEGUNDA`, corpo: { treinoId: alvoB.treinoId } },
+      // Aponta para um treino do PRÓPRIO A: se passasse, a mudança seria
+      // visível no banco (mandar o treino que já está lá esconderia a falha).
+      { metodo: "PUT", caminho: `/api/personal/programacoes/${alvoB.programacaoId}/dias/SEGUNDA`, corpo: { treinoId: alvoA2.treinoId } },
       { metodo: "DELETE", caminho: `/api/personal/programacoes/${alvoB.programacaoId}/dias/SEGUNDA` },
       { metodo: "PATCH", caminho: `/api/personal/avaliacoes/${alvoB.avaliacaoId}`, corpo: { peso: 50 } },
       { metodo: "DELETE", caminho: `/api/personal/avaliacoes/${alvoB.avaliacaoId}` },
@@ -530,13 +532,26 @@ describe("Personal acessando dados de outro Personal", () => {
   });
 
   it("nada do Personal B foi alterado", async () => {
+    const aluno = await prisma.alunoProfile.findUniqueOrThrow({
+      where: { id: alunoB1.alunoProfile.id },
+      include: { user: { select: { name: true } } },
+    });
+    expect(aluno.user.name).toBe("Aluno B1");
+    expect(aluno.personalId).toBe(personalB.personalProfile.id);
+    expect(aluno.status).toBe("ATIVO");
+
     const treino = await prisma.treino.findUniqueOrThrow({ where: { id: alvoB.treinoId } });
     expect(treino.nome).toBe("Treino do B");
+    // O aluno do B não ganhou treino nenhum vindo do A (duplicar, criar).
+    expect(await prisma.treino.count({ where: { alunoId: alunoB1.alunoProfile.id } })).toBe(1);
 
-    const item = await prisma.treinoExercicio.findUniqueOrThrow({
-      where: { id: alvoB.itemTreinoId },
-    });
-    expect(item.series).toBe(3);
+    // A ficha continua com exatamente o item original: nada foi apagado pelo
+    // DELETE nem acrescentado pelo POST. Conferir no banco é o que pega uma
+    // escrita que aconteceu antes de a rota responder 404.
+    const itens = await prisma.treinoExercicio.findMany({ where: { treinoId: alvoB.treinoId } });
+    expect(itens).toHaveLength(1);
+    expect(itens[0].id).toBe(alvoB.itemTreinoId);
+    expect(itens[0].series).toBe(3);
 
     const exercicio = await prisma.exercicio.findUniqueOrThrow({ where: { id: alvoB.exercicioId } });
     expect(exercicio.nome).toBe("Supino do B");
@@ -554,7 +569,17 @@ describe("Personal acessando dados de outro Personal", () => {
 
     expect(await prisma.bloqueio.findUnique({ where: { id: alvoB.bloqueioId } })).not.toBeNull();
     expect(await prisma.disponibilidade.findUnique({ where: { id: alvoB.faixaId } })).not.toBeNull();
-    expect(await prisma.programacao.findUnique({ where: { id: alvoB.programacaoId } })).not.toBeNull();
+
+    // A programação e o dia dela seguem apontando para o treino do B (o PUT e
+    // o DELETE em /dias/SEGUNDA não passaram).
+    const programacao = await prisma.programacao.findUniqueOrThrow({
+      where: { id: alvoB.programacaoId },
+      include: { dias: true },
+    });
+    expect(programacao.nome).toBe("Programação de teste");
+    expect(programacao.dias).toHaveLength(1);
+    expect(programacao.dias[0].diaSemana).toBe("SEGUNDA");
+    expect(programacao.dias[0].treinoId).toBe(alvoB.treinoId);
 
     // Controle positivo: para o dono, tudo continua acessível normalmente.
     expect((await get(`/api/personal/treinos/${alvoB.treinoId}`, cookieB)).status).toBe(200);
