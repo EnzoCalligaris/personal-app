@@ -31,15 +31,3 @@ export function exigir(nome: keyof typeof ONDE_ENCONTRAR | string): string {
       " Veja .env.example."
   );
 }
-
-/**
- * Valor opcional em desenvolvimento, obrigatório em produção. É o caso das
- * chaves do Supabase: dá para mexer só no banco localmente sem autenticação,
- * mas subir assim em produção deixaria as páginas sem proteção.
- */
-export function exigirEmProducao(nome: string): string | undefined {
-  const valor = process.env[nome];
-  if (valor) return valor;
-  if (emProducao) return exigir(nome);
-  return undefined;
-}

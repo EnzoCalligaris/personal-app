@@ -54,8 +54,3 @@ export async function notificar(evento: EventoNotificacao): Promise<void> {
     console.error("Falha ao despachar notificação:", erro);
   }
 }
-
-/** Vários eventos de uma vez (ex.: avisar aluno e Personal na mesma ação). */
-export async function notificarTodos(eventos: EventoNotificacao[]): Promise<void> {
-  await Promise.all(eventos.map(notificar));
-}

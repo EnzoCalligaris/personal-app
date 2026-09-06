@@ -16,7 +16,7 @@ const telefone = z
   .nullable();
 
 export const criarAlunoSchema = z.object({
-  name: z.string().trim().min(2, "Informe o nome completo."),
+  name: z.string().trim().min(2, "Informe o nome completo.").max(120, "Nome muito longo."),
   email: z.email("E-mail inválido."),
   phone: telefone,
   dataNascimento: dataOpcional,
@@ -27,7 +27,7 @@ export const criarAlunoSchema = z.object({
 export type CriarAlunoInput = z.infer<typeof criarAlunoSchema>;
 
 export const editarAlunoSchema = z.object({
-  name: z.string().trim().min(2, "Informe o nome completo.").optional(),
+  name: z.string().trim().min(2, "Informe o nome completo.").max(120, "Nome muito longo.").optional(),
   phone: telefone,
   dataNascimento: dataOpcional,
   altura: z.coerce.number().positive("Altura deve ser positiva.").max(300).optional().nullable(),

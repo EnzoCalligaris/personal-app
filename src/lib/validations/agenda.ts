@@ -126,8 +126,3 @@ export const editarComoAlunoSchema = z
     { message: "Informe o novo horário ou cancele o atendimento." }
   );
 export type EditarComoAlunoInput = z.infer<typeof editarComoAlunoSchema>;
-
-export const diasParaAgendarQuerySchema = z.object({
-  de: dataCalendario.optional(),
-  ate: dataCalendario.optional(),
-});

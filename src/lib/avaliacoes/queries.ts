@@ -160,22 +160,6 @@ export async function listarAvaliacoes(
   };
 }
 
-/** Histórico completo de um aluno, da mais recente para a mais antiga. */
-export async function avaliacoesDoAluno(
-  personalId: string,
-  alunoId: string
-): Promise<Avaliacao[]> {
-  await garantirAlunoDoPersonal(personalId, alunoId);
-
-  const avaliacoes = await prisma.avaliacao.findMany({
-    where: { personalId, alunoId },
-    include: incluirAluno,
-    orderBy: [{ data: "desc" }, { id: "desc" }],
-  });
-
-  return comVariacao(avaliacoes);
-}
-
 export async function obterAvaliacao(
   personalId: string,
   avaliacaoId: string

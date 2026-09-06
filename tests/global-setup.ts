@@ -37,10 +37,15 @@ export default async function setup() {
     throw new Error("`next build` falhou - não é possível subir o servidor de teste.");
   }
 
+  // O servidor de teste roda em UTC de propósito: é o fuso do contêiner de
+  // produção, e a máquina de quem desenvolve costuma estar em UTC-3. Assim a
+  // suíte inteira - e não só os testes de fuso - prova que a aplicação não
+  // depende do relógio do servidor. Se alguma data voltar a ser calculada no
+  // fuso do processo, algum destes testes quebra.
   const child: ChildProcess = spawn(
     process.execPath,
     [NEXT_BIN, "start", "-p", String(PORT), "-H", "127.0.0.1"],
-    { cwd: process.cwd(), stdio: "pipe" }
+    { cwd: process.cwd(), stdio: "pipe", env: { ...process.env, TZ: "UTC" } }
   );
 
   let output = "";

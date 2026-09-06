@@ -198,7 +198,7 @@ function ProximoTreino({
   if (!agendamento) return null;
 
   const status = STATUS_AGENDAMENTO[agendamento.status];
-  const dataISO = agendamento.data.slice(0, 10);
+  const dataISO = agendamento.data;
 
   return (
     <section
@@ -308,7 +308,7 @@ function ItemAgendamento({
 
         <div className="flex min-w-40 flex-1 flex-col">
           <span className="truncate text-sm font-medium first-letter:uppercase">
-            {formatarDiaPorExtenso(item.data.slice(0, 10))}
+            {formatarDiaPorExtenso(item.data)}
           </span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <ClockIcon className="size-3" aria-hidden="true" />
@@ -383,7 +383,7 @@ function CancelamentoModal({
       open
       onOpenChange={onOpenChange}
       title="Cancelar atendimento?"
-      description={`${formatarDiaPorExtenso(agendamento.data.slice(0, 10))} · ${agendamento.horaInicio} às ${agendamento.horaFim}`}
+      description={`${formatarDiaPorExtenso(agendamento.data)} · ${agendamento.horaInicio} às ${agendamento.horaFim}`}
       footer={
         <>
           <ModalClose render={<Button variant="ghost">Manter horário</Button>} />

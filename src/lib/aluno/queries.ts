@@ -2,13 +2,15 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { hojeISO } from "@/lib/fuso";
 import { STATUS_ATIVOS } from "@/lib/agenda/status";
 import { regrasDoPersonal } from "@/lib/agenda/queries";
 import { instanteDoAtendimento, podeDesmarcar, REGRAS_PADRAO } from "@/lib/agenda/regras";
 import {
+  dataUTC,
+  dataDeCalendario,
   dataDoInstante,
   hojeUTC,
-  limitesDoDiaLocal,
   paraISO,
   somarDiasUTC,
   intervaloDeDatas,
@@ -63,7 +65,6 @@ export class ItemInvalidoError extends Error {
 
 /** Últimos dias considerados ao calcular a sequência de treinos. */
 const JANELA_SEQUENCIA_DIAS = 30;
-
 
 function includeTreinoCom(hoje: Date) {
   return {
@@ -122,11 +123,12 @@ function toAgendamento(
   agora: Date = new Date()
 ): MeuAgendamento {
   const ativo = (STATUS_ATIVOS as readonly string[]).includes(item.status);
-  const inicio = instanteDoAtendimento(paraISO(dataDoInstante(item.data)), item.horaInicio);
+  const inicio = instanteDoAtendimento(dataDeCalendario(item.data), item.horaInicio);
 
   return {
     id: item.id,
-    data: item.data.toISOString(),
+    // Data de calendário, como na área do Personal: sem hora e sem fuso.
+    data: dataDeCalendario(item.data),
     horaInicio: item.horaInicio,
     horaFim: item.horaFim,
     status: item.status,
@@ -351,13 +353,6 @@ export async function meuHistorico(alunoId: string, limite = 50): Promise<MeuHis
    Agenda
    ------------------------------------------------------------------------- */
 
-/** Meia-noite local de hoje - o corte das consultas por dia. */
-function inicioDeHoje(agora: Date) {
-  const inicio = new Date(agora);
-  inicio.setHours(0, 0, 0, 0);
-  return inicio;
-}
-
 export async function minhaAgenda(
   alunoId: string,
   agora: Date = new Date()
@@ -373,12 +368,12 @@ export async function minhaAgenda(
     // A data é gravada na meia-noite do dia; o que separa passado de futuro é
     // o fim do atendimento, senão tudo o que é de hoje viraria histórico.
     prisma.agendamento.findMany({
-      where: { alunoId, data: { gte: inicioDeHoje(agora) } },
+      where: { alunoId, data: { gte: dataUTC(hojeISO(agora)) } },
       orderBy: [{ data: "asc" }, { horaInicio: "asc" }],
       take: 30,
     }),
     prisma.agendamento.findMany({
-      where: { alunoId, data: { lt: inicioDeHoje(agora) } },
+      where: { alunoId, data: { lt: dataUTC(hojeISO(agora)) } },
       orderBy: [{ data: "desc" }, { horaInicio: "desc" }],
       take: 10,
     }),
@@ -392,7 +387,7 @@ export async function minhaAgenda(
   const encerradosHoje: typeof deHojeEmDiante = [];
 
   for (const item of deHojeEmDiante) {
-    const fim = instanteDoAtendimento(paraISO(dataDoInstante(item.data)), item.horaFim);
+    const fim = instanteDoAtendimento(dataDeCalendario(item.data), item.horaFim);
     if (fim.getTime() >= agora.getTime()) proximos.push(item);
     else encerradosHoje.push(item);
   }
@@ -409,10 +404,8 @@ export async function minhaAgenda(
 
 /** Compromisso de pé em uma data de calendário (o horário do treino do dia). */
 async function agendamentoEm(alunoId: string, data: Date): Promise<MeuAgendamento | null> {
-  const { de, ate } = limitesDoDiaLocal(data);
-
   const agendamento = await prisma.agendamento.findFirst({
-    where: { alunoId, data: { gte: de, lte: ate }, status: { in: [...STATUS_ATIVOS] } },
+    where: { alunoId, data, status: { in: [...STATUS_ATIVOS] } },
     orderBy: { data: "asc" },
   });
 
@@ -466,7 +459,7 @@ export async function minhaEvolucao(alunoId: string): Promise<MinhaEvolucaoRespo
 
   const avaliacoes: MinhaAvaliacao[] = registros.map((item) => ({
     id: item.id,
-    data: item.data.toISOString(),
+    data: dataDeCalendario(item.data),
     peso: item.peso,
     imc: item.imc,
     percentualGordura: item.percentualGordura,
@@ -563,7 +556,7 @@ export async function meuPerfil(alunoId: string): Promise<MeuPerfil | null> {
     email: perfil.user.email,
     telefone: perfil.user.phone,
     avatarUrl: perfil.user.avatarUrl,
-    dataNascimento: perfil.dataNascimento?.toISOString() ?? null,
+    dataNascimento: perfil.dataNascimento ? dataDeCalendario(perfil.dataNascimento) : null,
     altura: perfil.altura,
     objetivo: perfil.objetivo,
     membroDesde: perfil.createdAt.toISOString(),
@@ -600,7 +593,7 @@ export async function atualizarMeuPerfil(
       where: { id: perfil.id },
       data: {
         ...(input.dataNascimento !== undefined
-          ? { dataNascimento: input.dataNascimento ? new Date(input.dataNascimento) : null }
+          ? { dataNascimento: input.dataNascimento ? dataUTC(input.dataNascimento) : null }
           : {}),
         ...(input.altura !== undefined ? { altura: input.altura ?? null } : {}),
         ...(input.objetivo !== undefined ? { objetivo: input.objetivo || null } : {}),

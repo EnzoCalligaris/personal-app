@@ -55,8 +55,3 @@ export function removerOcupados(
       )
   );
 }
-
-/** "08:00" + 60 -> "09:00" */
-export function somarMinutos(hora: string, minutos: number): string {
-  return deMinutos(paraMinutos(hora) + minutos);
-}

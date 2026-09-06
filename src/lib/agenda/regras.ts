@@ -1,3 +1,4 @@
+import { instanteDeParede } from "@/lib/fuso";
 import type { RegrasAgendamento } from "@/types/agenda";
 
 /**
@@ -14,11 +15,13 @@ export const REGRAS_PADRAO: RegrasAgendamento = {
   duracaoPadraoMin: 60,
 };
 
-/** O instante em que o atendimento começa, a partir da data e da hora. */
+/**
+ * O instante em que o atendimento começa. "08/09 às 07:00" são sete da manhã
+ * em São Paulo, independentemente de onde o servidor esteja rodando - é isto
+ * que faz a antecedência mínima e o prazo de cancelamento baterem.
+ */
 export function instanteDoAtendimento(dataISO: string, horaInicio: string): Date {
-  const [ano, mes, dia] = dataISO.split("-").map(Number);
-  const [hora, minuto] = horaInicio.split(":").map(Number);
-  return new Date(ano, mes - 1, dia, hora, minuto, 0, 0);
+  return instanteDeParede(dataISO, horaInicio);
 }
 
 function emHoras(milissegundos: number) {
@@ -27,6 +30,7 @@ function emHoras(milissegundos: number) {
 
 export type MotivoRecusa =
   | "AGENDAMENTO_DESATIVADO"
+  | "ALUNO_INATIVO"
   | "PASSADO"
   | "ANTECEDENCIA"
   | "FORA_DA_JANELA"
@@ -66,6 +70,7 @@ export function podeDesmarcar(
 
 export const MENSAGEM_RECUSA: Record<MotivoRecusa, string> = {
   AGENDAMENTO_DESATIVADO: "Seu Personal prefere marcar os horários. Fale com ele para agendar.",
+  ALUNO_INATIVO: "Seu cadastro está inativo. Fale com o seu Personal para voltar a marcar.",
   PASSADO: "Este horário já passou.",
   ANTECEDENCIA: "Este horário está fora da antecedência mínima definida pelo seu Personal.",
   FORA_DA_JANELA: "Esta data está além do período liberado para agendamento.",

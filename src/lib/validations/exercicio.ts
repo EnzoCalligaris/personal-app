@@ -19,8 +19,6 @@ export const GRUPOS_MUSCULARES = [
   "Outro",
 ] as const;
 
-export type GrupoMuscular = (typeof GRUPOS_MUSCULARES)[number];
-
 const urlOpcional = z
   .string()
   .trim()
@@ -33,7 +31,7 @@ const urlOpcional = z
   .nullable();
 
 export const criarExercicioSchema = z.object({
-  nome: z.string().trim().min(2, "Informe o nome do exercício."),
+  nome: z.string().trim().min(2, "Informe o nome do exercício.").max(120, "Nome muito longo."),
   grupoMuscular: z.enum(GRUPOS_MUSCULARES, { message: "Selecione o grupo muscular." }),
   descricao: z.string().trim().max(1000, "Descrição muito longa.").optional().nullable(),
   videoUrl: urlOpcional,
@@ -41,7 +39,7 @@ export const criarExercicioSchema = z.object({
 export type CriarExercicioInput = z.infer<typeof criarExercicioSchema>;
 
 export const editarExercicioSchema = z.object({
-  nome: z.string().trim().min(2, "Informe o nome do exercício.").optional(),
+  nome: z.string().trim().min(2, "Informe o nome do exercício.").max(120, "Nome muito longo.").optional(),
   grupoMuscular: z.enum(GRUPOS_MUSCULARES).optional(),
   descricao: z.string().trim().max(1000, "Descrição muito longa.").optional().nullable(),
   videoUrl: urlOpcional,

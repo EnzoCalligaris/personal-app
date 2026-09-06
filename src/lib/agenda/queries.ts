@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import {
-  dataDoInstante,
+  dataDeCalendario,
   dataUTC,
   diaSemanaDeDataUTC,
   intervaloDeDatas,
@@ -79,10 +79,13 @@ export class PeriodoInvalidoError extends Error {
   }
 }
 
-/** Meia-noite local do dia do calendário - é assim que a data é gravada. */
+/**
+ * A data do agendamento é um dia do calendário, não um instante: a coluna é
+ * `date` e a âncora é meia-noite UTC, então a leitura nunca escorrega de dia.
+ * A hora do atendimento vive em `horaInicio`/`horaFim`.
+ */
 function instanteDoDia(iso: string): Date {
-  const [ano, mes, dia] = iso.split("-").map(Number);
-  return new Date(ano, mes - 1, dia, 0, 0, 0, 0);
+  return dataUTC(iso);
 }
 
 /* -------------------------------------------------------------------------
@@ -229,7 +232,7 @@ function toAgendamento(
 ): AgendamentoAgenda {
   return {
     id: agendamento.id,
-    data: paraISO(dataDoInstante(agendamento.data)),
+    data: dataDeCalendario(agendamento.data),
     horaInicio: agendamento.horaInicio,
     horaFim: agendamento.horaFim,
     status: agendamento.status,
@@ -257,22 +260,20 @@ async function garantirHorarioLivre(
 ) {
   if (horaFim <= horaInicio) throw new PeriodoInvalidoError();
 
-  const inicioDoDia = instanteDoDia(dataISO);
-  const fimDoDia = new Date(inicioDoDia);
-  fimDoDia.setHours(23, 59, 59, 999);
+  const dia = dataUTC(dataISO);
 
   const [agendamentos, bloqueios] = await Promise.all([
     prisma.agendamento.findMany({
       where: {
         personalId,
-        data: { gte: inicioDoDia, lte: fimDoDia },
+        data: dia,
         status: { in: [...STATUS_ATIVOS] },
         ...(ignorarId ? { id: { not: ignorarId } } : {}),
       },
       select: { horaInicio: true, horaFim: true },
     }),
     prisma.bloqueio.findMany({
-      where: { personalId, data: dataUTC(dataISO) },
+      where: { personalId, data: dia },
       select: { horaInicio: true, horaFim: true },
     }),
   ]);
@@ -336,7 +337,7 @@ export async function criarAgendamento(
       tipo: "AGENDAMENTO_CONFIRMADO",
       alunoId: agendamento.alunoId,
       quando: {
-        data: paraISO(dataDoInstante(agendamento.data)),
+        data: dataDeCalendario(agendamento.data),
         horaInicio: agendamento.horaInicio,
         horaFim: agendamento.horaFim,
       },
@@ -357,12 +358,12 @@ export async function atualizarAgendamento(
   });
   if (!atual) throw new AgendamentoNaoEncontradoError();
 
-  const dataISO = input.data ?? paraISO(dataDoInstante(atual.data));
+  const dataISO = input.data ?? dataDeCalendario(atual.data);
   const horaInicio = input.horaInicio ?? atual.horaInicio;
   const horaFim = input.horaFim ?? atual.horaFim;
 
   const mudouHorario =
-    dataISO !== paraISO(dataDoInstante(atual.data)) ||
+    dataISO !== dataDeCalendario(atual.data) ||
     horaInicio !== atual.horaInicio ||
     horaFim !== atual.horaFim;
 
@@ -396,7 +397,7 @@ export async function atualizarAgendamento(
   });
 
   const quando = {
-    data: paraISO(dataDoInstante(agendamento.data)),
+    data: dataDeCalendario(agendamento.data),
     horaInicio: agendamento.horaInicio,
     horaFim: agendamento.horaFim,
   };
@@ -428,10 +429,10 @@ export async function atualizarAgendamento(
 /** O treino que a programação prevê para o aluno na data do agendamento. */
 async function treinoDoDia(agendamento: { alunoId: string; data: Date }) {
   const previstos = await treinosPrevistosPara([
-    { alunoId: agendamento.alunoId, data: dataDoInstante(agendamento.data) },
+    { alunoId: agendamento.alunoId, data: agendamento.data },
   ]);
   const previsto = previstos.get(
-    `${agendamento.alunoId}:${paraISO(dataDoInstante(agendamento.data))}`
+    `${agendamento.alunoId}:${dataDeCalendario(agendamento.data)}`
   );
   return previsto?.treino ? { id: previsto.treino.id, nome: previsto.treino.nome } : null;
 }
@@ -470,13 +471,9 @@ export async function agendaDoPeriodo(
   const { de, ate } = periodoDaVista(vista, referencia);
   const datas = intervaloDeDatas(de, ate);
 
-  const inicioBusca = instanteDoDia(paraISO(de));
-  const fimBusca = instanteDoDia(paraISO(ate));
-  fimBusca.setHours(23, 59, 59, 999);
-
   const [agendamentosRaw, bloqueiosRaw, faixas] = await Promise.all([
     prisma.agendamento.findMany({
-      where: { personalId, data: { gte: inicioBusca, lte: fimBusca } },
+      where: { personalId, data: { gte: de, lte: ate } },
       include: incluirAluno,
       orderBy: [{ data: "asc" }, { horaInicio: "asc" }],
     }),
@@ -491,13 +488,13 @@ export async function agendaDoPeriodo(
   const previstos = await treinosPrevistosPara(
     agendamentosRaw.map((item) => ({
       alunoId: item.alunoId,
-      data: dataDoInstante(item.data),
+      data: item.data,
     }))
   );
 
   const porData = new Map<string, AgendamentoAgenda[]>();
   for (const item of agendamentosRaw) {
-    const iso = paraISO(dataDoInstante(item.data));
+    const iso = dataDeCalendario(item.data);
     const previsto = previstos.get(`${item.alunoId}:${iso}`);
     const lista = porData.get(iso) ?? [];
     lista.push(
@@ -587,16 +584,12 @@ export async function horariosLivres(
   const data = dataUTC(dataISO);
   const diaSemana = diaSemanaDeDataUTC(data);
 
-  const inicioDoDia = instanteDoDia(dataISO);
-  const fimDoDia = new Date(inicioDoDia);
-  fimDoDia.setHours(23, 59, 59, 999);
-
   const [faixas, agendamentosRaw, bloqueiosRaw] = await Promise.all([
     prisma.disponibilidade.findMany({ where: { personalId, diaSemana } }),
     prisma.agendamento.findMany({
       where: {
         personalId,
-        data: { gte: inicioDoDia, lte: fimDoDia },
+        data,
         status: { in: [...STATUS_ATIVOS] },
       },
       select: { horaInicio: true, horaFim: true },

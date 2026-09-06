@@ -1,5 +1,4 @@
 import "server-only";
-import type { TipoNotificacao as TipoPrisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import type { Notificacao, NotificacoesResponse } from "@/types/feedback";
@@ -10,24 +9,6 @@ import type { Notificacao, NotificacoesResponse } from "@/types/feedback";
  */
 
 const LIMITE = 20;
-
-export async function criarNotificacao(entrada: {
-  userId: string;
-  tipo: TipoPrisma;
-  titulo: string;
-  mensagem: string;
-  link?: string | null;
-}) {
-  return prisma.notificacao.create({
-    data: {
-      userId: entrada.userId,
-      tipo: entrada.tipo,
-      titulo: entrada.titulo,
-      mensagem: entrada.mensagem,
-      link: entrada.link ?? null,
-    },
-  });
-}
 
 export async function minhasNotificacoes(userId: string): Promise<NotificacoesResponse> {
   const [registros, naoLidas] = await Promise.all([

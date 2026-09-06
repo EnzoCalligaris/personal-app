@@ -1,4 +1,5 @@
 import type { DiaSemana } from "@/types";
+import { dataDeCalendarioDe, hojeISO, limitesDoDia as limitesNoFuso } from "@/lib/fuso";
 
 export const DIAS_SEMANA: DiaSemana[] = [
   "DOMINGO",
@@ -11,25 +12,15 @@ export const DIAS_SEMANA: DiaSemana[] = [
 ];
 
 export function diaSemanaDe(date: Date): DiaSemana {
-  return DIAS_SEMANA[date.getDay()];
+  return diaSemanaDeDataUTC(dataUTC(dataDeCalendarioDe(date)));
 }
 
 export function inicioDoDia(date: Date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return limitesNoFuso(dataDeCalendarioDe(date)).de;
 }
 
 export function fimDoDia(date: Date) {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-export function diasAtras(date: Date, dias: number) {
-  const d = new Date(date);
-  d.setDate(d.getDate() - dias);
-  return d;
+  return limitesNoFuso(dataDeCalendarioDe(date)).ate;
 }
 
 /* -------------------------------------------------------------------------
@@ -51,10 +42,9 @@ export function paraISO(data: Date): string {
   return data.toISOString().slice(0, 10);
 }
 
-/** O dia de hoje no calendário local, normalizado como data UTC. */
-export function hojeUTC(): Date {
-  const agora = new Date();
-  return new Date(Date.UTC(agora.getFullYear(), agora.getMonth(), agora.getDate()));
+/** O dia de hoje no calendário brasileiro, ancorado em meia-noite UTC. */
+export function hojeUTC(agora: Date = new Date()): Date {
+  return dataUTC(hojeISO(agora));
 }
 
 /** Dia da semana de uma data de calendário. */
@@ -78,22 +68,30 @@ export function intervaloDeDatas(de: Date, ate: Date): Date[] {
 }
 
 /**
- * Instante -> data de calendário (UTC). Agendamentos guardam um instante e a
- * programação raciocina em datas; é assim que os dois se encontram.
+ * Instante -> data de calendário, lida no fuso da aplicação. Um treino
+ * executado às 22h de domingo pertence ao domingo, não à segunda que já
+ * começou em UTC.
  */
 export function dataDoInstante(instante: Date): Date {
-  return new Date(
-    Date.UTC(instante.getFullYear(), instante.getMonth(), instante.getDate())
-  );
+  return dataUTC(dataDeCalendarioDe(instante));
 }
 
-/** Começo e fim (no fuso local) do dia de uma data de calendário. */
+/**
+ * Começo e fim de uma data de calendário, como instantes reais no fuso da
+ * aplicação - para filtrar colunas que guardam instante.
+ */
 export function limitesDoDiaLocal(data: Date): { de: Date; ate: Date } {
-  const ano = data.getUTCFullYear();
-  const mes = data.getUTCMonth();
-  const dia = data.getUTCDate();
-  return {
-    de: new Date(ano, mes, dia, 0, 0, 0, 0),
-    ate: new Date(ano, mes, dia, 23, 59, 59, 999),
-  };
+  return limitesNoFuso(paraISO(data));
+}
+
+/**
+ * Lê uma data de calendário vinda do banco (coluna `date`, como
+ * `agendamentos.data` ou `bloqueios.data`).
+ *
+ * O valor já é um dia, ancorado em meia-noite UTC - passá-lo por conversão de
+ * fuso o faria escorregar para o dia anterior. É o oposto de
+ * `dataDoInstante`, que existe para valores que são um ponto no tempo.
+ */
+export function dataDeCalendario(valor: Date): string {
+  return paraISO(valor);
 }

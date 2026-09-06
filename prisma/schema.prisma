@@ -102,7 +102,7 @@ model AlunoProfile {
   personalId String?
   personal   PersonalProfile? @relation(fields: [personalId], references: [id], onDelete: SetNull)
 
-  dataNascimento DateTime?
+  dataNascimento DateTime? @db.Date
   altura         Float? // cm
   objetivo       String?
   observacoes    String?
@@ -345,7 +345,7 @@ model Agendamento {
   personal    PersonalProfile   @relation(fields: [personalId], references: [id], onDelete: Cascade)
   alunoId     String
   aluno       AlunoProfile      @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  data        DateTime
+  data        DateTime          @db.Date
   horaInicio  String
   horaFim     String
   status      StatusAgendamento @default(AGENDADO)
@@ -364,7 +364,7 @@ model Avaliacao {
   personal          PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
   alunoId           String
   aluno             AlunoProfile    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  data              DateTime        @default(now())
+  data              DateTime        @default(now()) @db.Date
   // Nenhuma medida é obrigatória: cada balança entrega um conjunto diferente,
   // e o que o equipamento não mediu fica nulo em vez de virar zero.
   peso              Float? // kg

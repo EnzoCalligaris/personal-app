@@ -95,7 +95,7 @@ function ItemHistorico({ execucao }: { execucao: ExecucaoRegistrada }) {
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="truncate font-medium">{execucao.treino.nome}</span>
           <span className="truncate text-xs text-muted-foreground first-letter:uppercase">
-            {formatarDiaPorExtenso(execucao.data.slice(0, 10))} · {formatarDataRelativa(execucao.data)}
+            {formatarDiaPorExtenso(execucao.data)} · {formatarDataRelativa(execucao.data)}
           </span>
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
             <Badge variant="outline" className="gap-1">

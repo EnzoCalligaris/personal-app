@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import {
-  dataDoInstante,
+  dataDeCalendario,
   dataUTC,
   diaSemanaDeDataUTC,
   hojeUTC,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/date-utils";
 import { gerarSlots, removerOcupados, sobrepoe } from "@/lib/agenda/horarios";
 import { STATUS_ATIVOS } from "@/lib/agenda/status";
+import { hojeISO } from "@/lib/fuso";
 import {
   instanteDoAtendimento,
   MENSAGEM_RECUSA,
@@ -75,6 +76,7 @@ async function personalDoAluno(alunoId: string) {
     where: { id: alunoId },
     select: {
       personalId: true,
+      status: true,
       user: { select: { name: true } },
       personal: { select: { user: { select: { name: true, email: true, avatarUrl: true } } } },
     },
@@ -85,6 +87,12 @@ async function personalDoAluno(alunoId: string) {
     personalId: aluno.personalId,
     personal: aluno.personal,
     nomeDoAluno: aluno.user.name,
+    /**
+     * Aluno inativo é aluno com quem o Personal encerrou (ou pausou) o
+     * trabalho. Ele continua enxergando o próprio histórico - o dado é dele -
+     * mas não toma mais horário na agenda de quem o desativou.
+     */
+    ativo: aluno.status === "ATIVO",
   };
 }
 
@@ -94,7 +102,9 @@ async function ativosDoAluno(alunoId: string, agora: Date) {
     where: {
       alunoId,
       status: { in: [...STATUS_ATIVOS] },
-      data: { gte: instanteDoDia(paraISO(dataDoInstante(agora))) },
+      // A coluna é uma data de calendário: compara com o dia de hoje no
+      // Brasil, não com o instante em que a consulta rodou.
+      data: { gte: dataUTC(hojeISO(agora)) },
     },
   });
 }
@@ -113,7 +123,7 @@ export async function horariosParaAgendar(
   dataISO: string,
   agora: Date = new Date()
 ): Promise<HorariosParaAgendarResponse> {
-  const { personalId } = await personalDoAluno(alunoId);
+  const { personalId, ativo } = await personalDoAluno(alunoId);
   const regras = await regrasDoPersonal(personalId);
 
   const vazio = (motivo: HorariosParaAgendarResponse["motivo"], mensagem: string | null = null) => ({
@@ -122,6 +132,8 @@ export async function horariosParaAgendar(
     motivo,
     mensagem,
   });
+
+  if (!ativo) return vazio("ALUNO_INATIVO", MENSAGEM_RECUSA.ALUNO_INATIVO);
 
   if (!regras.permiteAgendamento) {
     return vazio("AGENDAMENTO_DESATIVADO", MENSAGEM_RECUSA.AGENDAMENTO_DESATIVADO);
@@ -143,7 +155,7 @@ export async function horariosParaAgendar(
     prisma.agendamento.findMany({
       where: {
         personalId,
-        data: { gte: inicioDoDia, lte: fimDoDia },
+        data,
         status: { in: [...STATUS_ATIVOS] },
       },
       select: { horaInicio: true, horaFim: true },
@@ -212,16 +224,12 @@ export async function diasParaAgendar(
   const ate = somarDiasUTC(hoje, Math.min(dias, regras.janelaDias) - 1);
   const datas = intervaloDeDatas(hoje, ate);
 
-  const inicioBusca = instanteDoDia(paraISO(hoje));
-  const fimBusca = instanteDoDia(paraISO(ate));
-  fimBusca.setHours(23, 59, 59, 999);
-
   const [faixas, ocupados, bloqueios, ativos] = await Promise.all([
     prisma.disponibilidade.findMany({ where: { personalId } }),
     prisma.agendamento.findMany({
       where: {
         personalId,
-        data: { gte: inicioBusca, lte: fimBusca },
+        data: { gte: hoje, lte: ate },
         status: { in: [...STATUS_ATIVOS] },
       },
       select: { data: true, horaInicio: true, horaFim: true },
@@ -232,7 +240,7 @@ export async function diasParaAgendar(
 
   const ocupadosPorDia = new Map<string, SlotLivre[]>();
   for (const item of ocupados) {
-    const iso = paraISO(dataDoInstante(item.data));
+    const iso = dataDeCalendario(item.data);
     ocupadosPorDia.set(iso, [
       ...(ocupadosPorDia.get(iso) ?? []),
       { horaInicio: item.horaInicio, horaFim: item.horaFim },
@@ -371,7 +379,7 @@ function toMeuAgendamento(
   regras: RegrasAgendamento,
   agora: Date
 ): MeuAgendamento {
-  const iso = paraISO(dataDoInstante(agendamento.data));
+  const iso = dataDeCalendario(agendamento.data);
   const ativo = (STATUS_ATIVOS as readonly string[]).includes(agendamento.status);
 
   return {
@@ -391,7 +399,9 @@ export async function agendarComoAluno(
   input: AgendarComoAlunoInput,
   agora: Date = new Date()
 ): Promise<MeuAgendamento> {
-  const { personalId, nomeDoAluno } = await personalDoAluno(alunoId);
+  const { personalId, nomeDoAluno, ativo } = await personalDoAluno(alunoId);
+  if (!ativo) throw new AgendamentoRecusadoError(MENSAGEM_RECUSA.ALUNO_INATIVO);
+
   const regras = await regrasDoPersonal(personalId);
 
   await garantirQuePodeMarcar(alunoId, personalId, regras, input, agora);
@@ -432,15 +442,21 @@ export async function editarComoAluno(
   });
   if (!atual) throw new AgendamentoNaoEncontradoError();
 
-  const { personalId, nomeDoAluno } = await personalDoAluno(alunoId);
+  const { personalId, nomeDoAluno, ativo } = await personalDoAluno(alunoId);
   const regras = await regrasDoPersonal(personalId);
 
   if (!(STATUS_ATIVOS as readonly string[]).includes(atual.status)) {
     throw new AgendamentoRecusadoError("Este atendimento não está mais ativo.");
   }
 
+  // Cancelar segue permitido mesmo inativo - soltar um horário não ocupa
+  // agenda de ninguém. Remarcar, sim: tomaria um horário novo.
+  if (!ativo && input.status !== "CANCELADO") {
+    throw new AgendamentoRecusadoError(MENSAGEM_RECUSA.ALUNO_INATIVO);
+  }
+
   const inicioAtual = instanteDoAtendimento(
-    paraISO(dataDoInstante(atual.data)),
+    dataDeCalendario(atual.data),
     atual.horaInicio
   );
   if (!podeDesmarcar(inicioAtual, regras, agora)) {
@@ -461,7 +477,7 @@ export async function editarComoAluno(
       porQuem: "ALUNO",
       quem: nomeDoAluno,
       quando: {
-        data: paraISO(dataDoInstante(cancelado.data)),
+        data: dataDeCalendario(cancelado.data),
         horaInicio: cancelado.horaInicio,
         horaFim: cancelado.horaFim,
       },
@@ -497,10 +513,4 @@ export async function editarComoAluno(
   });
 
   return toMeuAgendamento(reagendado, regras, agora);
-}
-
-/** Usado pela tela "Minha agenda" para saber o que ainda dá para desmarcar. */
-export async function regrasDoAluno(alunoId: string): Promise<RegrasAgendamento> {
-  const { personalId } = await personalDoAluno(alunoId);
-  return regrasDoPersonal(personalId);
 }

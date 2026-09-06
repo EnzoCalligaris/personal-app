@@ -147,6 +147,29 @@ slots, prazos de cancelamento e datas de calendário vivem em `src/lib/agenda/` 
 
 Mais detalhes em [docs/seguranca.md](docs/seguranca.md) e [docs/desempenho.md](docs/desempenho.md).
 
+### Datas e fuso horário
+
+A plataforma atende no Brasil, e o horário que o Personal escreve na agenda é horário de
+São Paulo — não o do servidor. Duas categorias, tratadas de formas diferentes:
+
+| | O que é | Como trafega | Como é guardado |
+| --- | --- | --- | --- |
+| **Data de calendário** | Um dia: o dia do atendimento, o dia da avaliação, a data de nascimento | Texto `YYYY-MM-DD` | Coluna `date` — sem hora e sem fuso |
+| **Instante** | Um ponto no tempo: quando o treino foi executado, quando o feedback foi escrito | ISO completo | `timestamp` |
+
+A ponte entre as duas — "que instante é 07:00 do dia 08?" — passa por `src/lib/fuso.ts`, que
+usa `America/Sao_Paulo` explicitamente. Nada usa o relógio do processo: sem isso, o mesmo
+código se comporta diferente na máquina de quem desenvolve (UTC−3) e no contêiner de produção
+(UTC), fazendo "hoje" virar amanhã às 21:00 e cada atendimento ser lido três horas antes.
+
+No frontend, `src/lib/format.ts` distingue os dois: data de calendário é ancorada e lida em
+UTC (um dia não se converte); instante é exibido no fuso da aplicação, para que o horário que
+o Personal vê seja o mesmo que o aluno vê, mesmo que um dos dois esteja viajando.
+
+**O servidor dos testes sobe em UTC** (`tests/global-setup.ts`), que é o fuso de produção. Assim
+a suíte inteira — e não só `tests/fuso.test.ts` e `tests/fuso-http.test.ts` — prova que nada
+depende do relógio do servidor.
+
 ## 5. Estrutura de pastas
 
 ```

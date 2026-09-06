@@ -20,13 +20,13 @@ const itemTreinoBase = {
 
 export const criarTreinoSchema = z.object({
   alunoId: z.uuid("Selecione o aluno."),
-  nome: z.string().trim().min(2, "Informe o nome do treino."),
+  nome: z.string().trim().min(2, "Informe o nome do treino.").max(120, "Nome muito longo."),
   observacoes: z.string().trim().max(1000).optional().nullable(),
 });
 export type CriarTreinoInput = z.infer<typeof criarTreinoSchema>;
 
 export const editarTreinoSchema = z.object({
-  nome: z.string().trim().min(2, "Informe o nome do treino.").optional(),
+  nome: z.string().trim().min(2, "Informe o nome do treino.").max(120, "Nome muito longo.").optional(),
   observacoes: z.string().trim().max(1000).optional().nullable(),
   ativo: z.boolean().optional(),
   /** Permite transferir o treino para outro aluno do mesmo Personal. */
@@ -60,7 +60,6 @@ export const reordenarExerciciosSchema = z.object({
   /** Ids dos itens do treino, já na ordem desejada. */
   itens: z.array(z.uuid()).min(1, "Envie a nova ordem dos exercícios."),
 });
-export type ReordenarExerciciosInput = z.infer<typeof reordenarExerciciosSchema>;
 
 export const listarTreinosQuerySchema = z.object({
   alunoId: z.uuid().optional(),

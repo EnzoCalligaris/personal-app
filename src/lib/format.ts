@@ -1,4 +1,29 @@
+import { dataDeCalendarioDe, FUSO_APP } from "@/lib/fuso";
 import type { DiaSemana } from "@/types";
+
+const DATA_DE_CALENDARIO = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A API devolve datas em duas formas, e cada uma se exibe de um jeito:
+ *
+ * - **Data de calendário** ("2026-09-08") é um dia, não um ponto no tempo.
+ *   Ancorada e lida em UTC, sai igual em qualquer lugar do mundo. Fazer
+ *   `new Date("2026-09-08")` e formatar no fuso local mostraria o dia 07 no
+ *   Brasil, porque meia-noite UTC é 21:00 do dia anterior aqui.
+ * - **Instante** ("2026-09-08T10:00:00.000Z") é exibido no fuso da aplicação,
+ *   não no do navegador: o horário que o Personal vê tem que ser o mesmo que
+ *   o aluno vê, mesmo que um dos dois esteja viajando.
+ */
+function paraExibicao(iso: string): { instante: Date; timeZone: string } {
+  const texto = iso.trim();
+
+  if (DATA_DE_CALENDARIO.test(texto)) {
+    const [ano, mes, dia] = texto.split("-").map(Number);
+    return { instante: new Date(Date.UTC(ano, mes - 1, dia)), timeZone: "UTC" };
+  }
+
+  return { instante: new Date(texto), timeZone: FUSO_APP };
+}
 
 const DIA_SEMANA_LABEL: Record<DiaSemana, string> = {
   DOMINGO: "Domingo",
@@ -20,25 +45,37 @@ export function diasProgramadosLabel(dias: DiaSemana[]) {
 }
 
 export function formatarData(iso: string) {
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(
-    new Date(iso)
-  );
+  const { instante, timeZone } = paraExibicao(iso);
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    timeZone,
+  }).format(instante);
 }
 
 export function formatarDataCompleta(iso: string) {
+  const { instante, timeZone } = paraExibicao(iso);
   return new Intl.DateTimeFormat("pt-BR", {
     weekday: "long",
     day: "2-digit",
     month: "long",
-  }).format(new Date(iso));
+    timeZone,
+  }).format(instante);
 }
 
 /** "hoje", "ontem", "há 3 dias" ou a data, para períodos maiores. */
 export function formatarDataRelativa(iso: string, referencia = new Date()) {
-  const data = new Date(iso);
   const umDia = 24 * 60 * 60 * 1000;
-  const inicio = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const dias = Math.round((inicio(referencia) - inicio(data)) / umDia);
+  // Compara dias do calendário brasileiro, não instantes: às 22h de domingo,
+  // "hoje" ainda é domingo.
+  const emDias = (texto: string) => {
+    const [ano, mes, dia] = texto.split("-").map(Number);
+    return Date.UTC(ano, mes - 1, dia);
+  };
+  const diaDaData = DATA_DE_CALENDARIO.test(iso.trim())
+    ? iso.trim()
+    : dataDeCalendarioDe(new Date(iso));
+  const dias = Math.round((emDias(dataDeCalendarioDe(referencia)) - emDias(diaDaData)) / umDia);
 
   if (dias === 0) return "hoje";
   if (dias === 1) return "ontem";
@@ -62,30 +99,23 @@ export function iniciais(nome: string) {
     .join("");
 }
 
-/**
- * Datas de calendário ("2026-09-07") viram Date no fuso local, não em UTC:
- * `new Date("2026-09-07")` seria meia-noite UTC e, num fuso negativo, cairia
- * no dia 06 na hora de formatar.
- */
-function dataLocalDe(iso: string) {
-  const [ano, mes, dia] = iso.slice(0, 10).split("-").map(Number);
-  return new Date(ano, mes - 1, dia);
-}
-
 /** "2026-09-07" -> "07 de set." */
 export function formatarDataCalendario(iso: string) {
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(
-    dataLocalDe(iso)
+  const { instante, timeZone } = paraExibicao(iso);
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", timeZone }).format(
+    instante
   );
 }
 
 /** "2026-09-07" -> "segunda-feira, 7 de setembro" */
 export function formatarDiaPorExtenso(iso: string) {
+  const { instante, timeZone } = paraExibicao(iso);
   return new Intl.DateTimeFormat("pt-BR", {
     weekday: "long",
     day: "numeric",
     month: "long",
-  }).format(dataLocalDe(iso));
+    timeZone,
+  }).format(instante);
 }
 
 /** "08:00" + "09:00" -> "08:00 às 09:00" */

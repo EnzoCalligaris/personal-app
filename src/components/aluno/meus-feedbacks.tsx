@@ -108,7 +108,7 @@ function Destaque({ feedback, novo }: { feedback: MeuFeedback; novo: boolean }) 
           <Badge variant="default">Mais recente</Badge>
           {novo ? <Badge variant="info">Novo</Badge> : null}
           <span className="text-xs text-muted-foreground first-letter:uppercase">
-            {formatarDiaPorExtenso(feedback.criadoEm.slice(0, 10))}
+            {formatarDiaPorExtenso(feedback.criadoEm)}
           </span>
         </div>
 

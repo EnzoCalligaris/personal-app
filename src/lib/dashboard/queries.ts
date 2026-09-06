@@ -1,14 +1,12 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { STATUS_ATIVOS } from "@/lib/agenda/status";
+import { horaDeParede } from "@/lib/fuso";
 import {
-  dataDoInstante,
+  somarDiasUTC,
+  dataDeCalendario,
   diaSemanaDe,
-  diasAtras,
-  fimDoDia,
   hojeUTC,
-  inicioDoDia,
-  paraISO,
 } from "@/lib/date-utils";
 import {
   proximosTreinosDeAlunos,
@@ -21,8 +19,6 @@ import type {
   DashboardAvaliacao,
   DashboardData,
 } from "@/types/dashboard";
-
-
 
 const JANELA_ATIVIDADE_DIAS = 30;
 const LIMITE_AGENDA = 8;
@@ -39,10 +35,9 @@ export async function getDashboardData(
   agora: Date = new Date()
 ): Promise<DashboardData> {
   const hoje = diaSemanaDe(agora);
-  const hojeData = hojeUTC();
-  const inicioHoje = inicioDoDia(agora);
-  const fimHoje = fimDoDia(agora);
-  const janelaAtividade = diasAtras(agora, JANELA_ATIVIDADE_DIAS);
+  const hojeData = hojeUTC(agora);
+  const horaAgora = horaDeParede(agora);
+  const janelaAtividade = somarDiasUTC(hojeData, -JANELA_ATIVIDADE_DIAS);
 
   const [
     totalAlunos,
@@ -62,20 +57,24 @@ export async function getDashboardData(
     treinosPrevistosHoje(personalId, hojeData),
 
     prisma.agendamento.count({
-      where: { personalId, data: { gte: agora }, status: { in: [...STATUS_ATIVOS] } },
+      where: {
+        personalId,
+        status: { in: [...STATUS_ATIVOS] },
+        OR: [{ data: { gt: hojeData } }, { data: hojeData, horaInicio: { gt: horaAgora } }],
+      },
     }),
 
     prisma.avaliacao.count({ where: { personalId, data: { gte: janelaAtividade } } }),
 
     prisma.agendamento.findMany({
-      where: { personalId, data: { gte: inicioHoje, lte: fimHoje } },
+      where: { personalId, data: hojeData },
       include: { aluno: { include: { user: { select: { name: true } } } } },
       orderBy: [{ data: "asc" }, { horaInicio: "asc" }],
       take: LIMITE_AGENDA,
     }),
 
     prisma.agendamento.findMany({
-      where: { personalId, data: { gt: fimHoje }, status: { in: [...STATUS_ATIVOS] } },
+      where: { personalId, data: { gt: hojeData }, status: { in: [...STATUS_ATIVOS] } },
       include: { aluno: { include: { user: { select: { name: true } } } } },
       orderBy: [{ data: "asc" }, { horaInicio: "asc" }],
       take: LIMITE_AGENDA,
@@ -110,7 +109,7 @@ export async function getDashboardData(
   const previstosNaAgenda = await treinosPrevistosPara(
     agendamentos.map((item) => ({
       alunoId: item.alunoId,
-      data: dataDoInstante(item.data),
+      data: item.data,
     }))
   );
 
@@ -118,7 +117,7 @@ export async function getDashboardData(
 
   const mapAgendamento = (item: AgendamentoRaw): DashboardAgendamento => {
     const previsto = previstosNaAgenda.get(
-      `${item.alunoId}:${paraISO(dataDoInstante(item.data))}`
+      `${item.alunoId}:${dataDeCalendario(item.data)}`
     );
 
     return {

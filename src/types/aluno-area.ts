@@ -274,6 +274,7 @@ export type HorariosParaAgendarResponse = {
     | "ANTECEDENCIA"
     | "FORA_DA_JANELA"
     | "AGENDAMENTO_DESATIVADO"
+    | "ALUNO_INATIVO"
     | "LIMITE_ATINGIDO";
   mensagem: string | null;
 };
