@@ -5,7 +5,7 @@ import { ActivityIcon, RulerIcon, TrendingUpIcon } from "lucide-react";
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { formatarDataCalendario, formatarVariacao } from "@/lib/format";
+import { formatarDataCalendario, formatarVariacao, plural } from "@/lib/format";
 import type { MinhaAvaliacao, MinhaEvolucaoResponse, VariacaoMetrica } from "@/types/aluno-area";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -125,7 +125,7 @@ function EvolucaoCorporal() {
               <CardDescription>
                 {data.avaliacoes.length === 1
                   ? "Com mais de uma avaliação, a linha mostra a tendência."
-                  : `${data.avaliacoes.length} avaliações registradas.`}
+                  : `${plural(data.avaliacoes.length, "avaliação", "avaliações")} ${data.avaliacoes.length === 1 ? "registrada" : "registradas"}.`}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">

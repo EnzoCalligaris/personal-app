@@ -41,7 +41,7 @@ export default function Home() {
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <Brand />
           <div className="flex items-center gap-2">
-            <ThemeToggle />
+            <ThemeToggle className="tap-target" />
             <Button variant="ghost" size="sm" className="hidden sm:inline-flex" render={<Link href="/login" />}>
               Entrar
             </Button>

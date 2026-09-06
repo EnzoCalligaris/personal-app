@@ -13,7 +13,7 @@ import {
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { formatarDataCalendario, formatarVariacao } from "@/lib/format";
+import { formatarDataCalendario, formatarVariacao, plural } from "@/lib/format";
 import { formatarCarga } from "@/lib/treinos/carga";
 import type { EvolucaoExercicio, ProgressoResponse, SemanaDeTreino } from "@/types/aluno-area";
 import { Badge } from "@/components/ui/badge";
@@ -110,7 +110,7 @@ export function EvolucaoDosTreinos() {
         <p className="-mt-1 text-xs text-muted-foreground">
           Sua melhor sequência até hoje foi de{" "}
           <span className="font-medium text-foreground">
-            {resumo.melhorSequencia} treinos seguidos
+            {plural(resumo.melhorSequencia, "treino")} {resumo.melhorSequencia === 1 ? "seguido" : "seguidos"}
           </span>
           . Dias de descanso não quebram a sequência.
         </p>
@@ -159,8 +159,12 @@ function Frequencia({ semanas }: { semanas: SemanaDeTreino[] }) {
                     className="group relative flex h-full flex-1 flex-col justify-end gap-1"
                     title={`${formatarDataCalendario(semana.inicio)} a ${formatarDataCalendario(
                       semana.fim
-                    )}: ${semana.realizados} treino(s)${
-                      semana.previstos ? ` de ${semana.previstos} programado(s)` : ""
+                    )}: ${plural(semana.realizados, "treino")}${
+                      semana.previstos
+                        ? ` de ${semana.previstos} ${
+                            semana.previstos === 1 ? "programado" : "programados"
+                          }`
+                        : ""
                     }`}
                   >
                     {/* Traço do previsto: dá contexto à barra do realizado. */}

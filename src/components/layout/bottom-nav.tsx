@@ -20,6 +20,11 @@ export function BottomNav({ navKey }: { navKey: NavKey }) {
   const { items, rootHref } = navConfigs[navKey];
   const visible = bottomNavItems(items);
 
+  // Durante o treino a tela é um fluxo fechado, com saída própria (o × no
+  // topo): a barra roubaria altura e convidaria ao toque errado no meio de
+  // uma série. O botão da sessão assume o rodapé.
+  if (pathname.endsWith("/sessao")) return null;
+
   return (
     <nav
       aria-label="Navegação principal"

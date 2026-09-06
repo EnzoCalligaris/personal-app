@@ -89,7 +89,7 @@ export function AuthShell({
       <main className="flex flex-1 flex-col bg-background">
         <div className="flex items-center justify-between px-5 py-5 sm:px-8 lg:justify-end">
           <Brand href="/" className="lg:hidden" />
-          <ThemeToggle />
+          <ThemeToggle className="tap-target" />
         </div>
 
         <div className="flex flex-1 items-center justify-center px-5 pb-12 sm:px-8">

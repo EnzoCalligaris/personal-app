@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { useApi } from "@/hooks/use-api";
-import { diasProgramadosLabel, formatarData, formatarDataRelativa } from "@/lib/format";
+import { diasProgramadosLabel, formatarData, formatarDataRelativa, plural } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import type { TreinoDetalhe, TreinoItemExercicio } from "@/types/treino";
 import { Badge } from "@/components/ui/badge";
@@ -202,7 +202,7 @@ export function TreinoEditor({ treinoId }: { treinoId: string }) {
                 {atual.aluno.nome}
               </Link>
               {" · "}
-              {atual.totalExercicios} exercício(s)
+              {plural(atual.totalExercicios, "exercício")}
               {atual.ultimaExecucao
                 ? ` · executado ${formatarDataRelativa(atual.ultimaExecucao)}`
                 : " · nunca executado"}

@@ -12,7 +12,7 @@ import {
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { formatarCronometro, formatarDataRelativa, formatarDiaPorExtenso } from "@/lib/format";
+import { formatarCronometro, formatarDataRelativa, formatarDiaPorExtenso, plural } from "@/lib/format";
 import type { ExecucaoRegistrada, MeuHistoricoResponse } from "@/types/aluno-area";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -103,7 +103,7 @@ function ItemHistorico({ execucao }: { execucao: ExecucaoRegistrada }) {
               {execucao.exerciciosConcluidos}/{execucao.totalExercicios}
             </Badge>
             {execucao.totalSeries > 0 ? (
-              <Badge variant="outline">{execucao.totalSeries} séries</Badge>
+              <Badge variant="outline">{plural(execucao.totalSeries, "série")}</Badge>
             ) : null}
             {execucao.duracaoSeg ? (
               <Badge variant="outline" className="gap-1">

@@ -612,7 +612,7 @@ function AcoesDaSessao({
   onPularDescanso: () => void;
 }) {
   return (
-    <div className="pb-safe fixed inset-x-0 bottom-16 z-30 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-lg md:static md:rounded-2xl md:border md:px-4 md:shadow-soft">
+    <div className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-lg md:static md:rounded-2xl md:border md:px-4 md:shadow-soft">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2">
         {descansoRestante !== null ? (
           <Descanso
@@ -828,7 +828,7 @@ function TreinoConcluido({ execucao }: { execucao: ExecucaoRegistrada }) {
     <div className="flex animate-fade-up flex-col items-center gap-6 py-6 text-center">
       <span
         aria-hidden="true"
-        className="flex size-24 items-center justify-center rounded-full bg-primary/15 text-primary dark:bg-primary/20"
+        className="flex size-24 animate-celebrar items-center justify-center rounded-full bg-primary/15 text-primary dark:bg-primary/20"
       >
         <TrophyIcon className="size-12" />
       </span>

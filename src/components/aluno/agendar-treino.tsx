@@ -14,7 +14,7 @@ import {
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { diaSemanaLabel, formatarDiaPorExtenso, iniciais } from "@/lib/format";
+import { diaSemanaLabel, formatarDiaPorExtenso, iniciais, plural } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import type {
   DiaParaAgendar,
@@ -182,7 +182,8 @@ export function AgendarTreino() {
             <CardHeader className="border-b">
               <CardTitle>1. Escolha o dia</CardTitle>
               <CardDescription>
-                Os próximos {janela.dias.length} dias, com quantos horários cada um tem livre.
+                Os próximos {plural(janela.dias.length, "dia")}, com quantos horários cada um tem
+                livre.
               </CardDescription>
             </CardHeader>
             <CardContent>

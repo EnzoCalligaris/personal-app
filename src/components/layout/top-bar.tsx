@@ -16,7 +16,7 @@ export function TopBar({ user, rootHref }: { user: SessionUser; rootHref: string
       <Brand href={rootHref} className="md:hidden" />
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
-        <ThemeToggle />
+        <ThemeToggle className="tap-target" />
 
         <Notificacoes />
 

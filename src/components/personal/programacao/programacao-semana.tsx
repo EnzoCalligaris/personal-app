@@ -13,7 +13,7 @@ import {
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { diaSemanaLabel, formatarData } from "@/lib/format";
+import { diaSemanaLabel, formatarData, plural } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import type { DiaSemana } from "@/types";
 import type { Programacao, ProgramacaoListResponse } from "@/types/programacao";
@@ -245,7 +245,7 @@ export function ProgramacaoSemana({
                       {programacao.dataFim ? ` — ${formatarData(programacao.dataFim)}` : " — sem fim"}
                     </span>
                     <span>
-                      · {programacao.dias.filter((dia) => dia.treino).length} dia(s) com treino
+                      · {plural(programacao.dias.filter((dia) => dia.treino).length, "dia")} com treino
                     </span>
                   </li>
                 ))}

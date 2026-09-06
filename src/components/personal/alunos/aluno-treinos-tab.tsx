@@ -7,7 +7,7 @@ import { ArrowRightIcon, DumbbellIcon, PlusIcon } from "lucide-react";
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { diasProgramadosLabel, formatarDataRelativa } from "@/lib/format";
+import { diasProgramadosLabel, formatarDataRelativa, plural } from "@/lib/format";
 import type { TreinoListResponse } from "@/types/treino";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,8 @@ export function AlunoTreinosTab({ aluno }: { aluno: { id: string; nome: string }
         <>
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              {treinos.length} treino(s) vinculado(s) a {aluno.nome.split(" ")[0]}.
+              {plural(treinos.length, "treino")} {treinos.length === 1 ? "vinculado" : "vinculados"} a{" "}
+              {aluno.nome.split(" ")[0]}.
             </p>
             <Button size="sm" onClick={() => setCriando(true)}>
               <PlusIcon />
@@ -96,7 +97,7 @@ export function AlunoTreinosTab({ aluno }: { aluno: { id: string; nome: string }
                       {!treino.ativo ? <Badge variant="secondary">Inativo</Badge> : null}
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {treino.totalExercicios} exercício(s)
+                      {plural(treino.totalExercicios, "exercício")}
                       {treino.grupos.length ? ` · ${treino.grupos.join(", ")}` : ""}
                       {treino.ultimaExecucao
                         ? ` · executado ${formatarDataRelativa(treino.ultimaExecucao)}`

@@ -7,7 +7,7 @@ import { ArrowRightIcon, DumbbellIcon, PlusIcon, SearchIcon, XIcon } from "lucid
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { diasProgramadosLabel, formatarDataRelativa, iniciais } from "@/lib/format";
+import { diasProgramadosLabel, formatarDataRelativa, iniciais, plural } from "@/lib/format";
 import type { TreinoListItem, TreinoListResponse } from "@/types/treino";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -187,7 +187,7 @@ function LinhaTreino({ treino }: { treino: TreinoListItem }) {
             <span className="truncate text-xs text-muted-foreground">{treino.aluno.nome}</span>
 
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground lg:hidden">
-              <span>{treino.totalExercicios} exercício(s)</span>
+              <span>{plural(treino.totalExercicios, "exercício")}</span>
               {treino.grupos.length ? <span>{treino.grupos.join(" · ")}</span> : null}
             </div>
           </div>

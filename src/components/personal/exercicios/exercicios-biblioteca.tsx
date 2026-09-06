@@ -17,6 +17,7 @@ import {
 
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import type { ExercicioItem, ExercicioListResponse } from "@/types/exercicio";
 import { Badge } from "@/components/ui/badge";
@@ -284,7 +285,7 @@ export function ExerciciosBiblioteca() {
         title="Excluir exercício"
         description={
           excluindo?.usadoEmTreinos
-            ? `"${excluindo.nome}" está em ${excluindo.usadoEmTreinos} treino(s). Excluir removeria o exercício dessas fichas - arquive-o para tirá-lo da biblioteca sem alterar os treinos.`
+            ? `"${excluindo.nome}" está em ${plural(excluindo.usadoEmTreinos, "treino")}. Excluir removeria o exercício dessas fichas - arquive-o para tirá-lo da biblioteca sem alterar os treinos.`
             : `"${excluindo?.nome}" será removido permanentemente da sua biblioteca.`
         }
         footer={
@@ -398,7 +399,7 @@ function CardExercicio({
               <Badge variant="outline">{exercicio.grupoMuscular}</Badge>
               {!exercicio.ativo ? <Badge variant="secondary">Arquivado</Badge> : null}
               {exercicio.usadoEmTreinos > 0 ? (
-                <Badge variant="info">{exercicio.usadoEmTreinos} treino(s)</Badge>
+                <Badge variant="info">{plural(exercicio.usadoEmTreinos, "treino")}</Badge>
               ) : null}
             </div>
           </div>

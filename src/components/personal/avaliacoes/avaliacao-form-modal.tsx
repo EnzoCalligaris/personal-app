@@ -287,7 +287,7 @@ export function AvaliacaoFormModal({
 function Grupo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <fieldset className="flex flex-col gap-3">
-      <legend className="text-sm font-medium">{titulo}</legend>
+      <legend className="mb-2 text-sm font-medium">{titulo}</legend>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{children}</div>
     </fieldset>
   );

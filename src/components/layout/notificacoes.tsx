@@ -74,7 +74,7 @@ export function Notificacoes() {
             aria-label={
               naoLidas > 0 ? `Notificações (${naoLidas} não lidas)` : "Notificações"
             }
-            className="relative text-muted-foreground hover:text-foreground"
+            className="tap-target relative text-muted-foreground hover:text-foreground"
           >
             <BellIcon />
             {naoLidas > 0 ? (

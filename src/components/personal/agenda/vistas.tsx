@@ -11,7 +11,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { paraISO, hojeUTC } from "@/lib/date-utils";
-import { diaSemanaLabel, formatarDataCalendario, iniciais } from "@/lib/format";
+import { diaSemanaLabel, formatarDataCalendario, iniciais, plural } from "@/lib/format";
 import { STATUS_AGENDAMENTO } from "@/lib/agenda/status";
 import type { AgendaResponse, AgendamentoAgenda, DiaDaAgenda } from "@/types/agenda";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,6 +22,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import type { AcoesAgenda } from "@/components/personal/agenda/agenda";
 
 const ROTULOS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+/** Cor do ponto que resume o atendimento na vista de mês do celular. */
+const COR_DO_PONTO: Record<string, string> = {
+  CONFIRMADO: "bg-primary",
+  REALIZADO: "bg-muted-foreground/50",
+  AGENDADO: "bg-info",
+  REAGENDADO: "bg-info",
+};
 
 /* -------------------------------------------------------------------------
    Cartão de agendamento (usado nas três vistas)
@@ -280,7 +288,9 @@ export function VistaSemana({ agenda, acoes }: { agenda: AgendaResponse; acoes: 
   const hoje = paraISO(hojeUTC());
 
   return (
-    <div className="grid gap-3 md:grid-cols-7">
+    // Sete colunas só a partir de xl: em md/lg sobram ~100px por dia e o
+    // nome do aluno trunca. Abaixo disso, um cartão por dia é mais legível.
+    <div className="grid gap-3 xl:grid-cols-7">
       {agenda.dias.map((dia) => {
         const ehHoje = dia.data === hoje;
         const ativos = dia.agendamentos.filter((item) => item.status !== "CANCELADO");
@@ -388,7 +398,7 @@ export function VistaMes({ agenda, acoes }: { agenda: AgendaResponse; acoes: Aco
               key={dia.data}
               type="button"
               onClick={() => acoes.aoAbrirDia(dia.data)}
-              title={`${formatarDataCalendario(dia.data)}: ${ativos.length} atendimento(s)`}
+              title={`${formatarDataCalendario(dia.data)}: ${plural(ativos.length, "atendimento")}`}
               className={cn(
                 "flex min-h-20 flex-col gap-1 rounded-lg border p-1.5 text-left transition-colors outline-none",
                 "focus-visible:ring-[3px] focus-visible:ring-ring/40",
@@ -409,7 +419,24 @@ export function VistaMes({ agenda, acoes }: { agenda: AgendaResponse; acoes: Aco
                 {bloqueado ? <LockIcon className="size-3 text-warning" /> : null}
               </span>
 
-              <span className="flex flex-col gap-0.5">
+              {/* No celular a célula tem ~50px: "07:00 Ana" viraria "07:..." e
+                  não diria nada. Um ponto por atendimento mostra a carga do
+                  dia; o toque abre a vista de dia com os detalhes. */}
+              <span className="flex items-center gap-0.5 sm:hidden" aria-hidden="true">
+                {ativos.slice(0, 3).map((item) => (
+                  <span
+                    key={item.id}
+                    className={cn("size-1.5 rounded-full", COR_DO_PONTO[item.status] ?? "bg-info")}
+                  />
+                ))}
+                {ativos.length > 3 ? (
+                  <span className="text-[0.6rem] leading-none text-muted-foreground">
+                    +{ativos.length - 3}
+                  </span>
+                ) : null}
+              </span>
+
+              <span className="hidden flex-col gap-0.5 sm:flex">
                 {ativos.slice(0, 2).map((item) => (
                   <span
                     key={item.id}

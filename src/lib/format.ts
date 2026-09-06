@@ -114,3 +114,14 @@ export function formatarCronometro(segundos: number) {
 
   return horas > 0 ? `${horas}:${mm}:${ss}` : `${mm}:${ss}`;
 }
+
+/**
+ * Concorda o substantivo com o número: `plural(1, "treino")` -> "1 treino".
+ * Evita o "(s)" que aparecia na interface e as frases que só liam bem no
+ * plural ("1 treinos seguidos"). Para os irregulares, passe a forma plural:
+ * `plural(2, "avaliação", "avaliações")`.
+ */
+export function plural(quantidade: number, singular: string, formaPlural?: string) {
+  const palavra = quantidade === 1 ? singular : (formaPlural ?? `${singular}s`);
+  return `${quantidade} ${palavra}`;
+}

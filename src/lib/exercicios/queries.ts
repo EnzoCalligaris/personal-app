@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { plural } from "@/lib/format";
 import type {
   CriarExercicioInput,
   EditarExercicioInput,
@@ -179,7 +180,7 @@ export async function atualizarExercicio(
 export class ExercicioEmUsoError extends Error {
   constructor(public readonly usos: number) {
     super(
-      `Este exercício está em ${usos} treino(s). Arquive-o em vez de excluir para não alterar as fichas já montadas.`
+      `Este exercício está em ${plural(usos, "treino")}. Arquive-o em vez de excluir para não alterar as fichas já montadas.`
     );
     this.name = "ExercicioEmUsoError";
   }

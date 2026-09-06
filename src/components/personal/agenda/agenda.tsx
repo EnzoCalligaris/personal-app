@@ -158,6 +158,7 @@ export function AgendaPersonal() {
             </Button>
             <Button
               size="sm"
+              className="order-first sm:order-none"
               onClick={() => setNovoAgendamento({ data: data?.referencia ?? referencia })}
             >
               <CalendarPlusIcon />

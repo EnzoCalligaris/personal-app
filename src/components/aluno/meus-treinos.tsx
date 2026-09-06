@@ -11,7 +11,12 @@ import {
 } from "lucide-react";
 
 import { useApi } from "@/hooks/use-api";
-import { diasProgramadosLabel, formatarCronometro, formatarDataRelativa } from "@/lib/format";
+import {
+  diasProgramadosLabel,
+  formatarCronometro,
+  formatarDataRelativa,
+  plural,
+} from "@/lib/format";
 import { formatarDuracao } from "@/lib/treinos/duracao";
 import type { MeusTreinosResponse } from "@/types/aluno-area";
 import { Badge } from "@/components/ui/badge";
@@ -135,7 +140,7 @@ export function MeusTreinos() {
                     <span className="truncate text-sm font-medium">{item.treino.nome}</span>
                     <span className="truncate text-xs text-muted-foreground tabular-nums">
                       {item.exerciciosConcluidos}/{item.totalExercicios} exercícios
-                      {item.totalSeries ? ` · ${item.totalSeries} séries` : ""}
+                      {item.totalSeries ? ` · ${plural(item.totalSeries, "série")}` : ""}
                       {item.duracaoSeg ? ` · ${formatarCronometro(item.duracaoSeg)}` : ""}
                     </span>
                   </div>

@@ -37,6 +37,9 @@ function Brand({
   return (
     <Link
       href={href}
+      // Sem o wordmark sobra só o símbolo, que é decorativo: sem isto o
+      // leitor de tela anuncia apenas "link".
+      aria-label={showWordmark ? undefined : "Pulse Training - início"}
       className={cn(
         "flex items-center gap-2.5 rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
         className
