@@ -358,6 +358,7 @@ async function seedConteudoDoAluno() {
         await prisma.historicoTreino.create({
           data: {
             treinoId: treino.id,
+            treinoNome: treino.nome,
             alunoId: ana.id,
             dataExecucao: emDias(dias, 7),
             concluido: true,
@@ -561,7 +562,13 @@ async function seedDadosDemo() {
   });
 
   await prisma.historicoTreino.create({
-    data: { treinoId: treinoBruno.id, alunoId: bruno.id, dataExecucao: emDias(-2), concluido: true },
+    data: {
+      treinoId: treinoBruno.id,
+      treinoNome: treinoBruno.nome,
+      alunoId: bruno.id,
+      dataExecucao: emDias(-2),
+      concluido: true,
+    },
   });
 
   await prisma.avaliacao.createMany({

@@ -112,7 +112,12 @@ describe("Exercícios e Treinos", () => {
     });
 
     await prisma.historicoTreino.create({
-      data: { treinoId: treino.id, alunoId: alunoProfile.id, concluido: true },
+      data: {
+        treinoId: treino.id,
+        treinoNome: treino.nome,
+        alunoId: alunoProfile.id,
+        concluido: true,
+      },
     });
 
     const historico = await prisma.historicoTreino.findMany({ where: { alunoId: alunoProfile.id } });

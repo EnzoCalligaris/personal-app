@@ -195,6 +195,7 @@ describe("Treinos e histórico seguem o calendário brasileiro", () => {
     await prisma.historicoTreino.create({
       data: {
         treinoId: treino.id,
+        treinoNome: treino.nome,
         alunoId: ana.alunoProfile.id,
         dataExecucao: noite,
         concluido: true,

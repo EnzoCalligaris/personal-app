@@ -263,9 +263,15 @@ Enums: `Role`, `DiaSemana`, `StatusAluno`, `StatusAgendamento`, `TipoNotificacao
 **Multi-tenant por coluna.** Quase toda tabela carrega `personalId` e/ou `alunoId`. É o que
 permite escopar cada consulta pelo dono, em vez de confiar em filtro na aplicação.
 
-**Execução guarda um retrato, não uma referência.** `HistoricoExercicio` copia nome, grupo, séries,
-repetições e carga do momento em que o treino foi feito. Se a ficha mudar depois, o histórico
-continua contando o que realmente aconteceu.
+**Execução guarda um retrato, não uma referência.** `HistoricoTreino` copia o nome da ficha e
+`HistoricoExercicio` copia nome, grupo, séries, repetições e carga do momento em que o treino foi
+feito. Se a ficha mudar — ou for excluída — o histórico continua contando o que realmente
+aconteceu.
+
+**O histórico é do aluno.** Excluir uma ficha é uma ação do Personal sobre um modelo de treino, e
+não pode apagar o que já foi realizado: a referência (`historico_treinos.treinoId`) usa
+`ON DELETE SET NULL`, e o registro segue completo pelo retrato. A interface mostra "Ficha
+removida" quando não há mais para onde apontar.
 
 ## 8. Variáveis de ambiente
 

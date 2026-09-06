@@ -177,11 +177,13 @@ export async function createAvaliacao(
 export async function createHistorico(
   treinoId: string,
   alunoId: string,
-  overrides?: { dataExecucao?: Date }
+  overrides?: { dataExecucao?: Date; treinoNome?: string }
 ) {
+  const treino = await prisma.treino.findUnique({ where: { id: treinoId }, select: { nome: true } });
   return prisma.historicoTreino.create({
     data: {
       treinoId,
+      treinoNome: overrides?.treinoNome ?? treino?.nome ?? "Treino",
       alunoId,
       dataExecucao: overrides?.dataExecucao ?? new Date(),
       concluido: true,
@@ -210,9 +212,11 @@ export async function createExecucao(
     }[];
   }
 ) {
+  const treino = await prisma.treino.findUnique({ where: { id: treinoId }, select: { nome: true } });
   return prisma.historicoTreino.create({
     data: {
       treinoId,
+      treinoNome: treino?.nome ?? "Treino",
       alunoId,
       dataExecucao: overrides?.dataExecucao ?? new Date(),
       duracaoSeg: overrides?.duracaoSeg ?? null,

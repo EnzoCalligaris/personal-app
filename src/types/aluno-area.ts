@@ -49,7 +49,8 @@ export type ExecucaoRegistrada = {
   observacoes: string | null;
   /** Tempo cronometrado da sessão, quando ela passou pela tela de execução. */
   duracaoSeg: number | null;
-  treino: { id: string; nome: string };
+  /** id nulo quando a ficha original foi excluída - o nome permanece. */
+  treino: { id: string | null; nome: string };
   itens: ExercicioExecutado[];
   /** Exercícios marcados como feitos / total registrado. */
   exerciciosConcluidos: number;

@@ -218,7 +218,9 @@ export async function meuTreino(
    ------------------------------------------------------------------------- */
 
 const includeExecucao = {
-  treino: { select: { id: true, nome: true } },
+  // Só para saber se a ficha ainda existe (e poder linkar para ela). O nome
+  // exibido vem do retrato em `treinoNome`, que sobrevive à exclusão dela.
+  treino: { select: { id: true } },
   itens: { orderBy: { ordem: "asc" } },
 } satisfies Prisma.HistoricoTreinoInclude;
 
@@ -245,7 +247,12 @@ function toExecucao(execucao: ExecucaoRaw): ExecucaoRegistrada {
     concluido: execucao.concluido,
     observacoes: execucao.observacoes,
     duracaoSeg: execucao.duracaoSeg,
-    treino: execucao.treino,
+    treino: {
+      // `id` nulo = a ficha foi excluída. O histórico continua inteiro, só
+      // deixa de ter para onde apontar.
+      id: execucao.treino?.id ?? null,
+      nome: execucao.treinoNome,
+    },
     itens,
     exerciciosConcluidos: concluidos.length,
     totalExercicios: itens.length,
@@ -292,6 +299,9 @@ export async function registrarExecucao(
   const execucao = await prisma.historicoTreino.create({
     data: {
       treinoId: treino.id,
+      // Retrato do nome: o registro precisa dizer qual treino foi feito mesmo
+      // que a ficha seja excluída depois.
+      treinoNome: treino.nome,
       alunoId,
       concluido: input.concluido ?? true,
       observacoes: input.observacoes?.trim() || null,

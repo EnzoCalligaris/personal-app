@@ -137,7 +137,15 @@ export function MeusTreinos() {
                     <CalendarCheckIcon className="size-4" />
                   </span>
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-sm font-medium">{item.treino.nome}</span>
+                    <span className="truncate text-sm font-medium">
+                      {item.treino.nome}
+                      {/* Ficha excluída pelo Personal: a execução permanece. */}
+                      {item.treino.id === null ? (
+                        <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                          (ficha removida)
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="truncate text-xs text-muted-foreground tabular-nums">
                       {item.exerciciosConcluidos}/{item.totalExercicios} exercícios
                       {item.totalSeries ? ` · ${plural(item.totalSeries, "série")}` : ""}

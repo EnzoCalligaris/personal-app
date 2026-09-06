@@ -202,6 +202,7 @@ async function criar() {
     await prisma.historicoTreino.create({
       data: {
         treinoId: treino.id,
+        treinoNome: treino.nome,
         alunoId: aluno.id,
         dataExecucao,
         duracaoSeg: 4200 + i * 120,

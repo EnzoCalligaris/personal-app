@@ -93,7 +93,16 @@ function ItemHistorico({ execucao }: { execucao: ExecucaoRegistrada }) {
         </span>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="truncate font-medium">{execucao.treino.nome}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-medium">{execucao.treino.nome}</span>
+            {/* A ficha foi excluída pelo Personal: o registro do que foi feito
+                continua, e o rótulo explica por que não há para onde ir. */}
+            {execucao.treino.id === null ? (
+              <Badge variant="secondary" className="shrink-0 font-normal">
+                Ficha removida
+              </Badge>
+            ) : null}
+          </span>
           <span className="truncate text-xs text-muted-foreground first-letter:uppercase">
             {formatarDiaPorExtenso(execucao.data)} · {formatarDataRelativa(execucao.data)}
           </span>

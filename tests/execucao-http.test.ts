@@ -254,19 +254,29 @@ describe("Histórico do aluno", () => {
     expect(data.historico[0].duracaoSeg).toBe(2730);
   });
 
-  it("some junto com o treino quando a ficha é excluída", async () => {
-    await prisma.treino.delete({ where: { id: treinoDaAna.id } });
-
-    const data = (await (
+  it("permanece quando a ficha é excluída - o registro é do aluno", async () => {
+    const antes = (await (
       await get("/api/aluno/historico", cookieAna)
     ).json()) as MeuHistoricoResponse;
-    expect(data.execucoes).toHaveLength(0);
+    const nomeDaFicha = antes.execucoes[0].treino.nome;
 
-    // E os itens do histórico foram junto (cascata), sem deixar órfãos - só
-    // sobrou a execução do Bruno.
+    await prisma.treino.delete({ where: { id: treinoDaAna.id } });
+
+    const depois = (await (
+      await get("/api/aluno/historico", cookieAna)
+    ).json()) as MeuHistoricoResponse;
+
+    expect(depois.execucoes).toHaveLength(antes.execucoes.length);
+    // O nome vem do retrato gravado na execução, não da ficha.
+    expect(depois.execucoes[0].treino.nome).toBe(nomeDaFicha);
+    // E a interface sabe que não há mais para onde apontar.
+    expect(depois.execucoes[0].treino.id).toBeNull();
+    expect(depois.execucoes[0].itens.length).toBeGreaterThan(0);
+
+    // Nenhum item do histórico foi apagado junto.
     const itensRestantes = await prisma.historicoExercicio.count({
       where: { historico: { alunoId: { in: [ana.alunoProfile.id, bruno.alunoProfile.id] } } },
     });
-    expect(itensRestantes).toBe(1);
+    expect(itensRestantes).toBeGreaterThan(1);
   });
 });

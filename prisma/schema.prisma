@@ -230,8 +230,13 @@ model TreinoExercicio {
 
 model HistoricoTreino {
   id           String       @id @default(uuid())
-  treinoId     String
-  treino       Treino       @relation(fields: [treinoId], references: [id], onDelete: Cascade)
+  // O histórico é do aluno: ele registra o que foi feito, não a ficha que
+  // originou. Se o Personal excluir a ficha, a referência some (SetNull) e o
+  // registro continua de pé, contando pelo retrato abaixo.
+  treinoId     String?
+  treino       Treino?      @relation(fields: [treinoId], references: [id], onDelete: SetNull)
+  /** Nome da ficha no momento da execução - sobrevive à exclusão dela. */
+  treinoNome   String
   alunoId      String
   aluno        AlunoProfile @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   dataExecucao DateTime     @default(now())
