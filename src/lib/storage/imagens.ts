@@ -1,4 +1,6 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const TAMANHO_MAXIMO = 2 * 1024 * 1024; // 2 MB
@@ -26,7 +28,8 @@ async function garantirBucket(admin: ReturnType<typeof createAdminClient>, bucke
 /**
  * Envia uma imagem para o Supabase Storage e devolve a URL pública.
  * O nome inclui um timestamp para o navegador não servir a versão antiga do
- * cache quando a imagem é trocada.
+ * cache quando a imagem é trocada, e um sufixo aleatório para que a URL não
+ * possa ser deduzida a partir do id do aluno (o bucket é público).
  */
 export async function enviarImagem({
   bucket,
@@ -43,7 +46,8 @@ export async function enviarImagem({
   await garantirBucket(admin, bucket);
 
   const extensao = file.type.split("/")[1]?.replace("jpeg", "jpg") ?? "jpg";
-  const caminho = `${pasta}/${nomeBase}-${Date.now()}.${extensao}`;
+  const sufixo = randomBytes(8).toString("hex");
+  const caminho = `${pasta}/${nomeBase}-${Date.now()}-${sufixo}.${extensao}`;
 
   const { error } = await admin.storage
     .from(bucket)

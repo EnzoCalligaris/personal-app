@@ -1,5 +1,5 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
+import { randomInt } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
 import { STATUS_ATIVOS } from "@/lib/agenda/status";
@@ -170,9 +170,18 @@ export async function obterAluno(
   };
 }
 
+/** Sem caracteres ambíguos (0/O, 1/I/L), para ditar a senha sem erro. */
+const ALFABETO_SENHA = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
 function gerarSenhaTemporaria() {
-  // Legível para ditar ao aluno, com entropia suficiente para uso temporário.
-  return `Pulse${randomBytes(4).toString("hex").toUpperCase()}!`;
+  // Doze caracteres sorteados sem viés (~59 bits): a senha chega ao aluno por
+  // fora do sistema e vale até ele trocar, então precisa resistir a tentativa
+  // de adivinhação. Os grupos de quatro e o prefixo/sufixo fixos mantêm a
+  // senha legível e dentro da política de complexidade.
+  const grupos = [0, 1, 2].map(() =>
+    Array.from({ length: 4 }, () => ALFABETO_SENHA[randomInt(ALFABETO_SENHA.length)]).join("")
+  );
+  return `pulse-${grupos.join("-")}!`;
 }
 
 export class EmailJaCadastradoError extends Error {

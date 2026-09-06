@@ -106,7 +106,9 @@ describe("Alunos - criar", () => {
     expect(res.status).toBe(201);
     expect(body.aluno.nome).toBe("Joana Teste");
     expect(body.aluno.status).toBe("ATIVO");
-    expect(body.senhaTemporaria).toMatch(/^Pulse[0-9A-F]{8}!$/);
+    // Doze caracteres sorteados (~59 bits): a senha vai por fora do sistema e
+    // vale até o aluno trocar, então precisa resistir a adivinhação.
+    expect(body.senhaTemporaria).toMatch(/^pulse(-[A-HJ-NP-Z2-9]{4}){3}!$/);
 
     alunoCriadoId = body.aluno.id;
 
