@@ -207,11 +207,30 @@ export async function consumir(alvos: Alvo[], agora: Date = new Date()): Promise
   return recusa;
 }
 
-/** Registra uma falha, sem decidir nada - a decisão fica para a próxima. */
-export async function registrarFalha(alvos: Alvo[], agora: Date = new Date()): Promise<void> {
-  for (const { chave, limite } of alvos) {
-    await incrementar(chave, limite, agora);
-  }
+/**
+ * Devolve a tentativa que esta requisição consumiu.
+ *
+ * Serve para o caso em que só se sabe depois que a tentativa não devia ter
+ * contado - no login, o acerto da senha. Diferente de `esquecer`, que zera a
+ * chave inteira: aqui volta **uma** unidade, porque as outras tentativas
+ * daquela chave podem ser de mais gente. Zerar o contador do IP porque alguém
+ * acertou a própria senha apagaria as falhas de todo mundo que veio de lá.
+ *
+ * A linha some quando não sobra tentativa nenhuma: uma chave sem contagem não
+ * precisa existir. O `DELETE` reconfere o valor, então uma tentativa que
+ * chegue entre as duas instruções não é apagada por engano.
+ */
+export async function devolver(chaves: string[], agora: Date = new Date()): Promise<void> {
+  if (chaves.length === 0) return;
+
+  await prisma.rateLimit.updateMany({
+    where: { chave: { in: chaves }, janelaFim: { gt: agora }, tentativas: { gt: 0 } },
+    data: { tentativas: { decrement: 1 } },
+  });
+
+  await prisma.rateLimit.deleteMany({
+    where: { chave: { in: chaves }, tentativas: { lte: 0 } },
+  });
 }
 
 /** Esquece as tentativas de uma chave. Usado quando a senha finalmente confere. */

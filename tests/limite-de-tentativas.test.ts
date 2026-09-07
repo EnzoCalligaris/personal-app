@@ -295,3 +295,149 @@ describe("Cadastro", () => {
     expect(await prisma.rateLimit.count()).toBe(0);
   }, 60000);
 });
+
+/**
+ * A corrida que o passo anterior deixou em aberto.
+ *
+ * O login perguntava se ainda cabia, autenticava, e só então contava a falha.
+ * Entre a pergunta e a resposta cabia outra requisição inteira - dez
+ * simultâneas perguntavam antes de qualquer uma contar, e as dez passavam. Um
+ * atacante com concorrência N tentava N senhas por janela em vez de cinco.
+ *
+ * Cada caso usa um IP próprio, para o teto por conta e o teto por IP não se
+ * misturarem. As rajadas são disparadas juntas e resolvidas com
+ * `Promise.all`: são requisições concorrentes de verdade contra o mesmo
+ * contador, não chamadas em sequência.
+ */
+describe("Login sob concorrência", () => {
+  const tentar = (email: string, senha: string, ip: string) =>
+    fetch(`${BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-For": ip },
+      body: JSON.stringify({ email, password: senha }),
+    }).then((r) => r.status);
+
+  /** Quantas tentativas a chave registrou. */
+  async function contador(chave: string): Promise<number> {
+    const linha = await prisma.rateLimit.findUnique({ where: { chave } });
+    return linha?.tentativas ?? 0;
+  }
+
+  const LIMITE = LIMITES.LOGIN_CONTA.tentativas;
+
+  it("A) dez falhas em sequência: cinco chegam ao Auth, o resto é barrado", async () => {
+    const email = personal.user.email;
+    const respostas: number[] = [];
+
+    for (let i = 0; i < 10; i++) respostas.push(await tentar(email, "SenhaErrada@1", "198.18.0.1"));
+
+    expect(respostas.filter((s) => s === 401)).toHaveLength(LIMITE);
+    expect(respostas.filter((s) => s === 429)).toHaveLength(10 - LIMITE);
+    // E os cinco primeiros são os que passaram.
+    expect(respostas.slice(0, LIMITE).every((s) => s === 401)).toBe(true);
+  }, 60000);
+
+  it("B) dez falhas simultâneas: no máximo cinco chegam ao Auth", async () => {
+    const email = personal.user.email;
+
+    const respostas = await Promise.all(
+      Array.from({ length: 10 }, () => tentar(email, "SenhaErrada@1", "198.18.0.2"))
+    );
+
+    const chegaram = respostas.filter((s) => s === 401).length;
+    expect(chegaram).toBeLessThanOrEqual(LIMITE);
+    expect(respostas.filter((s) => s === 429).length).toBe(10 - chegaram);
+    // Nenhuma outra forma de resposta - nada de 500 sob concorrência.
+    expect(respostas.every((s) => s === 401 || s === 429)).toBe(true);
+  }, 60000);
+
+  it("C) o contador registra a rajada inteira e não libera mais nada", async () => {
+    const email = personal.user.email;
+    const chave = chaveDeConta("login", email);
+
+    await Promise.all(
+      Array.from({ length: 10 }, () => tentar(email, "SenhaErrada@1", "198.18.0.3"))
+    );
+
+    // Toda tentativa foi contada, inclusive as barradas: quem insiste não
+    // encurta a espera.
+    expect(await contador(chave)).toBe(10);
+
+    // E a conta segue bloqueada, inclusive para a senha certa.
+    expect(await tentar(email, SENHA, "198.18.0.3")).toBe(429);
+  }, 60000);
+
+  it("D) o acerto devolve a tentativa que consumiu, inclusive na do IP", async () => {
+    const email = personal.user.email;
+    const ip = "198.18.0.4";
+
+    expect(await tentar(email, SENHA, ip)).toBe(200);
+
+    // Nem a conta nem o IP ficam com tentativa pendurada.
+    expect(await contador(chaveDeConta("login", email))).toBe(0);
+    expect(await contador(chaveDeIp("login", ip))).toBe(0);
+  }, 60000);
+
+  it("E) falha, falha, acerto, falha: o acerto zera o histórico da conta", async () => {
+    const email = personal.user.email;
+    const ip = "198.18.0.5";
+    const chave = chaveDeConta("login", email);
+
+    expect(await tentar(email, "SenhaErrada@1", ip)).toBe(401);
+    expect(await tentar(email, "SenhaErrada@1", ip)).toBe(401);
+    expect(await contador(chave)).toBe(2);
+
+    expect(await tentar(email, SENHA, ip)).toBe(200);
+    expect(await contador(chave)).toBe(0);
+
+    expect(await tentar(email, "SenhaErrada@1", ip)).toBe(401);
+    expect(await contador(chave)).toBe(1);
+  }, 60000);
+
+  it("F/I) o teto por IP também segura sob concorrência", async () => {
+    const ip = "198.18.0.6";
+    const teto = LIMITES.LOGIN_IP.tentativas;
+    const rajada = teto + 8;
+
+    // Contas distintas: cada uma tem contador próprio em 1, então quem decide
+    // é o teto do IP. Endereços inexistentes falham igual e contam igual.
+    const respostas = await Promise.all(
+      Array.from({ length: rajada }, (_, i) => tentar(`corrida-${i}@example.com`, "SenhaX@123", ip))
+    );
+
+    const chegaram = respostas.filter((s) => s === 401).length;
+    expect(chegaram).toBeLessThanOrEqual(teto);
+    expect(respostas.filter((s) => s === 429).length).toBe(rajada - chegaram);
+    expect(respostas.every((s) => s === 401 || s === 429)).toBe(true);
+
+    // Simultâneo não rende mais tentativas que sequencial: o IP está fechado.
+    expect(await tentar("mais-um@example.com", "SenhaX@123", ip)).toBe(429);
+  }, 120000);
+
+  it("G) contas diferentes têm limites independentes", async () => {
+    const outra = await createPersonal({ name: "Outra Conta Limite" });
+    const ip = "198.18.0.7";
+
+    for (let i = 0; i < LIMITE; i++) {
+      expect(await tentar(personal.user.email, "SenhaErrada@1", ip)).toBe(401);
+    }
+    expect(await tentar(personal.user.email, "SenhaErrada@1", ip)).toBe(429);
+
+    // A outra conta começa do zero, e ainda cabe no teto do IP (20).
+    expect(await tentar(outra.user.email, "SenhaErrada@1", ip)).toBe(401);
+    expect(await contador(chaveDeConta("login", outra.user.email))).toBe(1);
+  }, 60000);
+
+  it("H) uma conta no limite não impede outra de entrar do mesmo IP", async () => {
+    const outra = await createPersonal({ name: "Vizinha de IP" });
+    const ip = "198.18.0.8";
+
+    for (let i = 0; i < LIMITE + 1; i++) {
+      await tentar(personal.user.email, "SenhaErrada@1", ip);
+    }
+    expect(await tentar(personal.user.email, SENHA, ip)).toBe(429);
+
+    // Quem sabe a própria senha entra normalmente.
+    expect(await tentar(outra.user.email, SENHA, ip)).toBe(200);
+  }, 60000);
+});
