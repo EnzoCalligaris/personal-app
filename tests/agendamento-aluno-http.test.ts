@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
+import { dataUTC } from "@/lib/date-utils";
+import { dataDeCalendarioDe, horaDeParede } from "@/lib/fuso";
 import type { RegrasAgendamento } from "@/types/agenda";
 import type {
   DiasParaAgendarResponse,
@@ -235,6 +237,9 @@ describe("Marcar horário", () => {
     expect(daAna.status).toBe("AGENDADO");
     expect(daAna.horaInicio).toBe("07:00");
     expect(daAna.podeDesmarcar).toBe(true);
+    // O dia volta como dia de calendário, não como instante: quem recebia
+    // "...T00:00:00.000Z" exibia a véspera na tela do aluno.
+    expect(daAna.data).toBe(DAQUI_TRES_DIAS);
 
     // O horário sai da lista oferecida.
     const horarios = await horariosEm(DAQUI_TRES_DIAS);
@@ -345,6 +350,7 @@ describe("Minha agenda: cancelar e reagendar", () => {
     expect(agenda.proximos).toHaveLength(1);
     expect(agenda.proximos[0].podeDesmarcar).toBe(true);
     expect(agenda.proximos[0].horaInicio).toBe("07:00");
+    expect(agenda.proximos[0].data).toBe(DAQUI_TRES_DIAS);
   });
 
   it("reagenda para outro horário livre", async () => {
@@ -409,18 +415,28 @@ describe("Minha agenda: cancelar e reagendar", () => {
   });
 
   it("recusa cancelamento fora do prazo", async () => {
-    // Um atendimento daqui a poucas horas, criado pelo Personal.
-    const daquiAPouco = new Date();
-    daquiAPouco.setHours(daquiAPouco.getHours() + 2);
-    const hora = `${String(daquiAPouco.getHours()).padStart(2, "0")}:00`;
+    /**
+     * Um atendimento daqui a duas horas, criado pelo Personal.
+     *
+     * O dia e a hora saem do *mesmo* instante, lidos no fuso da aplicação: se
+     * agora forem 23h, o atendimento cai às 01h de amanhã - e é essa a data
+     * gravada. Somar duas horas ao relógio local e reaproveitar o dia de hoje
+     * produzia um horário no passado, e o teste passava ou falhava conforme a
+     * hora em que a suíte rodasse.
+     */
+    const daquiADuasHoras = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    const dia = dataDeCalendarioDe(daquiADuasHoras);
+    const hora = horaDeParede(daquiADuasHoras);
+    const umaHoraDepois = horaDeParede(new Date(daquiADuasHoras.getTime() + 60 * 60 * 1000));
 
     const criado = await prisma.agendamento.create({
       data: {
         personalId: personal.personalProfile.id,
         alunoId: ana.alunoProfile.id,
-        data: new Date(new Date().setHours(0, 0, 0, 0)),
+        data: dataUTC(dia),
         horaInicio: hora,
-        horaFim: `${String(daquiAPouco.getHours() + 1).padStart(2, "0")}:00`,
+        // Perto da meia-noite o fim viraria a madrugada seguinte; encerra no dia.
+        horaFim: umaHoraDepois > hora ? umaHoraDepois : "23:59",
         status: "CONFIRMADO",
       },
     });

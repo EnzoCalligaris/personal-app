@@ -14,6 +14,7 @@ import {
 import { useApi } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
 import { diaSemanaLabel, formatarData, plural } from "@/lib/format";
+import { hojeISO } from "@/lib/fuso";
 import { toast } from "@/lib/toast";
 import type { DiaSemana } from "@/types";
 import type { Programacao, ProgramacaoListResponse } from "@/types/programacao";
@@ -28,13 +29,6 @@ import { Label } from "@/components/ui/label";
 import { Modal, ModalClose } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-
-function hojeISO() {
-  const agora = new Date();
-  return new Date(Date.UTC(agora.getFullYear(), agora.getMonth(), agora.getDate()))
-    .toISOString()
-    .slice(0, 10);
-}
 
 /**
  * Rotina semanal do aluno: qual treino cai em cada dia, dentro de um período.

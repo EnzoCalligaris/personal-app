@@ -66,11 +66,6 @@ export class AgendamentoNaoEncontradoError extends Error {
 /** Quantos dias à frente a tela de agendamento mostra por padrão. */
 const DIAS_NA_TELA = 21;
 
-function instanteDoDia(iso: string): Date {
-  const [ano, mes, dia] = iso.split("-").map(Number);
-  return new Date(ano, mes - 1, dia, 0, 0, 0, 0);
-}
-
 async function personalDoAluno(alunoId: string) {
   const aluno = await prisma.alunoProfile.findUnique({
     where: { id: alunoId },
@@ -145,10 +140,6 @@ export async function horariosParaAgendar(
 
   const data = dataUTC(dataISO);
   const diaSemana = diaSemanaDeDataUTC(data);
-
-  const inicioDoDia = instanteDoDia(dataISO);
-  const fimDoDia = new Date(inicioDoDia);
-  fimDoDia.setHours(23, 59, 59, 999);
 
   const [faixas, ocupados, bloqueios] = await Promise.all([
     prisma.disponibilidade.findMany({ where: { personalId, diaSemana } }),
@@ -325,9 +316,6 @@ async function garantirQuePodeMarcar(
   }
 
   const data = dataUTC(input.data);
-  const inicioDoDia = instanteDoDia(input.data);
-  const fimDoDia = new Date(inicioDoDia);
-  fimDoDia.setHours(23, 59, 59, 999);
 
   const [faixas, ocupados, bloqueios] = await Promise.all([
     prisma.disponibilidade.findMany({
@@ -336,7 +324,7 @@ async function garantirQuePodeMarcar(
     prisma.agendamento.findMany({
       where: {
         personalId,
-        data: { gte: inicioDoDia, lte: fimDoDia },
+        data,
         status: { in: [...STATUS_ATIVOS] },
         ...(ignorarId ? { id: { not: ignorarId } } : {}),
       },
@@ -384,7 +372,10 @@ function toMeuAgendamento(
 
   return {
     id: agendamento.id,
-    data: agendamento.data.toISOString(),
+    // O dia do atendimento, não o instante: "2026-09-16". Devolver o ISO
+    // completo fazia a tela do aluno exibir a véspera (meia-noite UTC é 21h
+    // do dia anterior em São Paulo) e quebrava a data relativa.
+    data: iso,
     horaInicio: agendamento.horaInicio,
     horaFim: agendamento.horaFim,
     status: agendamento.status,
@@ -410,7 +401,7 @@ export async function agendarComoAluno(
     data: {
       personalId,
       alunoId,
-      data: instanteDoDia(input.data),
+      data: dataUTC(input.data),
       horaInicio: input.horaInicio,
       horaFim: input.horaFim,
       // Nasce à espera do aceite, salvo se o Personal liberou a confirmação.
@@ -497,7 +488,7 @@ export async function editarComoAluno(
   const reagendado = await prisma.agendamento.update({
     where: { id: atual.id },
     data: {
-      data: instanteDoDia(novo.data),
+      data: dataUTC(novo.data),
       horaInicio: novo.horaInicio,
       horaFim: novo.horaFim,
       status: "REAGENDADO",
