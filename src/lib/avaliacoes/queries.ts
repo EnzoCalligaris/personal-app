@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { dataDeCalendario } from "@/lib/date-utils";
 import { notificar } from "@/lib/notificacoes/enviar";
 import type { Avaliacao, AvaliacaoListResponse } from "@/types/avaliacao";
 import type {
@@ -47,7 +48,9 @@ function diferenca(atual: number | null, anterior: number | null): number | null
 function toAvaliacao(avaliacao: AvaliacaoRaw, anterior?: AvaliacaoRaw | null): Avaliacao {
   return {
     id: avaliacao.id,
-    data: avaliacao.data.toISOString(),
+    // Dia da avaliação, não instante: `toISOString()` mandava meia-noite UTC,
+    // que a tela lê como 21h do dia anterior e exibe a véspera.
+    data: dataDeCalendario(avaliacao.data),
     aluno: {
       id: avaliacao.alunoId,
       nome: avaliacao.aluno.user.name,
@@ -202,7 +205,7 @@ export async function criarAvaliacao(
   await notificar({
     tipo: "NOVA_AVALIACAO",
     alunoId,
-    data: avaliacao.data.toISOString(),
+    data: dataDeCalendario(avaliacao.data),
   });
 
   return (await obterAvaliacao(personalId, avaliacao.id))!;

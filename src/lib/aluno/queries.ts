@@ -519,7 +519,7 @@ export async function meusFeedbacks(alunoId: string, limite = 30): Promise<MeuFe
     criadoEm: item.createdAt.toISOString(),
     personal: toPersonal(item.personal),
     avaliacao: item.avaliacao
-      ? { id: item.avaliacao.id, data: item.avaliacao.data.toISOString() }
+      ? { id: item.avaliacao.id, data: dataDeCalendario(item.avaliacao.data) }
       : null,
     lido: item.lidoEm !== null,
   }));

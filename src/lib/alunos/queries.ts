@@ -2,7 +2,7 @@ import "server-only";
 import { randomInt } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
-import { hojeUTC } from "@/lib/date-utils";
+import { dataDeCalendario, hojeUTC } from "@/lib/date-utils";
 import { STATUS_ATIVOS } from "@/lib/agenda/status";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { proximosTreinosDeAlunos } from "@/lib/programacoes/queries";
@@ -54,7 +54,7 @@ function toListItem(aluno: AlunoComRelacoes): AlunoListItem {
     ultimaAvaliacao: ultima
       ? {
           id: ultima.id,
-          data: ultima.data.toISOString(),
+          data: dataDeCalendario(ultima.data),
           peso: ultima.peso,
           percentualGordura: ultima.percentualGordura,
         }
@@ -156,7 +156,7 @@ export async function obterAluno(
 
   return {
     ...comProximo,
-    dataNascimento: aluno.dataNascimento?.toISOString() ?? null,
+    dataNascimento: aluno.dataNascimento ? dataDeCalendario(aluno.dataNascimento) : null,
     altura: aluno.altura,
     objetivo: aluno.objetivo,
     observacoes: aluno.observacoes,
@@ -164,7 +164,9 @@ export async function obterAluno(
       totalTreinos: aluno._count.treinos,
       treinosAtivos: aluno.treinos.length,
       totalAgendamentos: aluno._count.agendamentos,
-      proximoAgendamento: aluno.agendamentos[0]?.data.toISOString() ?? null,
+      proximoAgendamento: aluno.agendamentos[0]
+        ? dataDeCalendario(aluno.agendamentos[0].data)
+        : null,
       totalAvaliacoes: aluno._count.avaliacoes,
       ultimaExecucao: aluno.historico[0]?.dataExecucao.toISOString() ?? null,
     },

@@ -131,7 +131,8 @@ export async function getDashboardData(
 
     return {
       id: item.id,
-      data: item.data.toISOString(),
+      // O dia do atendimento; a hora vem separada, em `horaInicio`.
+      data: dataDeCalendario(item.data),
       horaInicio: item.horaInicio,
       horaFim: item.horaFim,
       status: item.status,
@@ -170,7 +171,7 @@ export async function getDashboardData(
 
   const avaliacoesRecentes: DashboardAvaliacao[] = avaliacoesRecentesRaw.map((avaliacao) => ({
     id: avaliacao.id,
-    data: avaliacao.data.toISOString(),
+    data: dataDeCalendario(avaliacao.data),
     peso: avaliacao.peso,
     percentualGordura: avaliacao.percentualGordura,
     aluno: { id: avaliacao.alunoId, nome: avaliacao.aluno.user.name },

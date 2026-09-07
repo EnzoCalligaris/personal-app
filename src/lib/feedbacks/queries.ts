@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { dataDeCalendario } from "@/lib/date-utils";
 import { notificar } from "@/lib/notificacoes/enviar";
 import type { FeedbackItem, FeedbackListResponse } from "@/types/feedback";
 import type {
@@ -55,7 +56,7 @@ function toFeedback(feedback: FeedbackRaw): FeedbackItem {
     lidoEm: feedback.lidoEm?.toISOString() ?? null,
     lido: feedback.lidoEm !== null,
     avaliacao: feedback.avaliacao
-      ? { id: feedback.avaliacao.id, data: feedback.avaliacao.data.toISOString() }
+      ? { id: feedback.avaliacao.id, data: dataDeCalendario(feedback.avaliacao.data) }
       : null,
   };
 }
