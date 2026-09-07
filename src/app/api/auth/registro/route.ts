@@ -3,6 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { prisma } from "@/lib/prisma";
 import { registroSchema } from "@/lib/validations/auth";
+import {
+  chaveDeIp,
+  consumir,
+  ipDaRequisicao,
+  LIMITES,
+  respostaDeLimite,
+} from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -16,6 +23,13 @@ export async function POST(request: NextRequest) {
   }
 
   const { name, email, password, role } = parsed.data;
+
+  // Contra criação automatizada de contas. Corpo inválido nem chega aqui, então
+  // gastar uma tentativa custa ao menos um cadastro bem formado.
+  const limite = await consumir([
+    { chave: chaveDeIp("registro", ipDaRequisicao(request)), limite: LIMITES.REGISTRO_IP },
+  ]);
+  if (!limite.permitido) return respostaDeLimite(limite.esperarSeg);
 
   const admin = createAdminClient();
 

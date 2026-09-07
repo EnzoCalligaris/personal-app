@@ -285,6 +285,7 @@ Todas em [`.env.example`](.env.example), com a origem de cada valor. Copie para 
 | `SUPABASE_SERVICE_ROLE_KEY` | **Secreta.** Gerencia contas do Auth. Só no servidor | Settings → API → `service_role` |
 | `DATABASE_URL` | Conexão usada pela aplicação. Em produção, a do **pooler** (porta 6543) | Settings → Database → Connection pooling |
 | `DIRECT_URL` | Conexão direta (porta 5432), usada só pelo Prisma CLI nas migrations | Settings → Database |
+| `RATE_LIMIT_IP_HEADER` | *Opcional.* De qual header ler o IP do cliente no limite de tentativas das rotas de autenticação. Padrão `x-forwarded-for`; num CDN, use o header dele (ex.: `cf-connecting-ip`) | Documentação do seu proxy/CDN |
 
 Localmente, `npm run supabase:start` imprime todos esses valores; `DATABASE_URL` e `DIRECT_URL`
 são iguais (não há pooler local).

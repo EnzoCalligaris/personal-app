@@ -14,4 +14,9 @@ export async function resetDb() {
   // agendamentos, avaliações...) e a conta correspondente no Supabase Auth.
   await prisma.$executeRawUnsafe(`DELETE FROM "users" WHERE email LIKE '%@example.com';`);
   await prisma.$executeRawUnsafe(`DELETE FROM auth.users WHERE email LIKE '%@example.com';`);
+
+  // O limite de tentativas das rotas de auth conta por IP, e a suíte inteira
+  // sai do mesmo endereço: sem zerar aqui, um arquivo herdaria as tentativas
+  // do anterior e a ordem de execução mudaria o resultado.
+  await prisma.$executeRawUnsafe(`DELETE FROM "rate_limits";`);
 }

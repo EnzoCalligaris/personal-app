@@ -440,3 +440,20 @@ model Notificacao {
   @@index([userId, createdAt])
   @@map("notificacoes")
 }
+
+/// Tentativas por janela nas rotas de autenticação (ver src/lib/rate-limit.ts).
+///
+/// Fica no banco, e não na memória do processo, porque a imagem de produção
+/// pode subir em mais de uma instância - um contador local daria a cada réplica
+/// o seu próprio limite.
+model RateLimit {
+  /// Escopo + tipo + hash do IP ou do e-mail. Nada legível.
+  chave      String   @id
+  tentativas Int      @default(1)
+  /// Quando a janela vence: a partir daí a contagem recomeça.
+  janelaFim  DateTime
+
+  /// Para a limpeza periódica varrer por data.
+  @@index([janelaFim])
+  @@map("rate_limits")
+}
