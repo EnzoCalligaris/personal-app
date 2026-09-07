@@ -101,31 +101,75 @@ export function chaveDeConta(escopo: string, email: string): string {
    ------------------------------------------------------------------------- */
 
 /**
+ * Onde cai quem não chegou por um proxy declarado.
+ *
+ * Um balde só, de propósito: sem proxy não existe endereço confiável, e fingir
+ * que existe seria pior do que não separar.
+ */
+export const SEM_PROXY_CONFIAVEL = "sem-proxy-confiavel";
+
+/**
+ * Qual header carrega o endereço do cliente - se é que algum carrega.
+ *
+ * Não há como o servidor descobrir isso sozinho. O Next preenche
+ * `x-forwarded-for` com o endereço do socket, mas **só quando o header não
+ * veio na requisição** (`req.headers['x-forwarded-for'] ??= socket.remoteAddress`,
+ * em next/dist/server/base-server.js). Se o cliente mandar o seu, é o dele que
+ * fica, e no handler os dois casos são indistinguíveis: não sobra nada para
+ * comparar. `NextRequest` também não expõe o endereço de origem nesta versão.
+ *
+ * Ou seja: o endereço só é confiável se algo na frente da aplicação
+ * **sobrescrever** o header a cada requisição. Quem sabe se isso acontece é
+ * quem faz o deploy, então é ele quem declara, nomeando o header em
+ * `RATE_LIMIT_IP_HEADER` - `x-forwarded-for` atrás de nginx,
+ * `cf-connecting-ip` atrás da Cloudflare.
+ *
+ * Sem essa declaração, em produção a aplicação para: um limite por IP que o
+ * próprio cliente escolhe não protege ninguém, e passar batido seria pior do
+ * que falhar alto. Em desenvolvimento e nos testes não há proxy nenhum, então
+ * o pedido cai no balde único.
+ */
+function headerDeIpConfiavel(): string | null {
+  const nome = process.env.RATE_LIMIT_IP_HEADER?.trim();
+  if (nome) return nome.toLowerCase();
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "RATE_LIMIT_IP_HEADER não definida. Informe o header que o proxy à frente" +
+        " da aplicação sobrescreve com o endereço do cliente (x-forwarded-for" +
+        " atrás de nginx, cf-connecting-ip atrás da Cloudflare). Sem proxy não" +
+        " há endereço confiável e o limite por IP não protege. Veja .env.example."
+    );
+  }
+
+  return null;
+}
+
+/**
  * De onde veio a requisição.
  *
- * A aplicação roda como imagem `standalone` atrás do que o operador colocar na
- * frente, então **qual** header diz a verdade depende da hospedagem: com nginx
- * é `x-forwarded-for`, com Cloudflare é `cf-connecting-ip`. Por isso o nome do
- * header é configuração (`RATE_LIMIT_IP_HEADER`), não um palpite.
+ * Devolve o endereço só quando ele vem do header declarado pelo deploy; em
+ * qualquer outro caso, o balde único. Note que isso inclui o pedido que chega
+ * **sem** o header estando ele declarado: quem não passou pelo proxy não ganha
+ * um balde próprio por isso.
  *
  * De um `x-forwarded-for` com vários endereços vale o mais à direita: quem
  * escreve à esquerda é o cliente, e o proxy da ponta acrescenta o endereço real
- * no fim. Ainda assim, todo header pode ser forjado se não houver um proxy
- * reescrevendo-o - por isso o limite por IP é a camada larga, e quem sustenta a
- * proteção contra força bruta dirigida é o limite por conta, que não tem como
- * ser contornado trocando de endereço.
+ * no fim.
  */
 export function ipDaRequisicao(request: NextRequest): string {
-  const header = process.env.RATE_LIMIT_IP_HEADER || "x-forwarded-for";
+  const header = headerDeIpConfiavel();
+  if (!header) return SEM_PROXY_CONFIAVEL;
+
   const bruto = request.headers.get(header);
-  if (!bruto) return "desconhecido";
+  if (!bruto) return SEM_PROXY_CONFIAVEL;
 
   const partes = bruto
     .split(",")
     .map((parte) => parte.trim())
     .filter(Boolean);
 
-  return partes[partes.length - 1] ?? "desconhecido";
+  return partes[partes.length - 1] ?? SEM_PROXY_CONFIAVEL;
 }
 
 /* -------------------------------------------------------------------------

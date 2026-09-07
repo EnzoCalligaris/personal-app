@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
@@ -6,9 +7,11 @@ import {
   chaveDeIp,
   consumir,
   esquecer,
+  ipDaRequisicao,
   limparExpirados,
   LIMITES,
   normalizarEmail,
+  SEM_PROXY_CONFIAVEL,
   verificar,
 } from "@/lib/rate-limit";
 import { resetDb } from "./db";
@@ -440,4 +443,118 @@ describe("Login sob concorrência", () => {
     // Quem sabe a própria senha entra normalmente.
     expect(await tentar(outra.user.email, SENHA, ip)).toBe(200);
   }, 60000);
+});
+
+/**
+ * De onde sai o endereço que vira chave.
+ *
+ * Não existe API de IP confiável aqui. O Next preenche `x-forwarded-for` com o
+ * endereço do socket, mas só quando o header não veio na requisição - se o
+ * cliente mandar o dele, é o dele que fica, e no handler os dois casos são
+ * indistinguíveis. Era essa a brecha: variando o header, cada tentativa ganhava
+ * um balde novo e o teto por IP nunca fechava.
+ *
+ * Estes casos chamam a função de resolução de verdade, com requisições de
+ * verdade - nada de dublê. E o último deles leva o resultado até o contador,
+ * para mostrar que o teto fecha mesmo com o header variando.
+ */
+describe("Endereço confiável", () => {
+  /** Uma requisição real, com os headers que o teste quiser. */
+  const req = (headers: Record<string, string>) =>
+    new NextRequest("http://exemplo.test/api/auth/login", { method: "POST", headers });
+
+  /** Roda o corpo com o ambiente trocado e devolve tudo no fim. */
+  async function comAmbiente(
+    valores: { header?: string; producao?: boolean },
+    corpo: () => void | Promise<void>
+  ) {
+    const headerOriginal = process.env.RATE_LIMIT_IP_HEADER;
+    const nodeOriginal = process.env.NODE_ENV;
+    const definir = (chave: string, valor: string | undefined) => {
+      if (valor === undefined) delete (process.env as Record<string, string | undefined>)[chave];
+      else (process.env as Record<string, string | undefined>)[chave] = valor;
+    };
+
+    try {
+      definir("RATE_LIMIT_IP_HEADER", valores.header);
+      definir("NODE_ENV", valores.producao ? "production" : "test");
+      await corpo();
+    } finally {
+      definir("RATE_LIMIT_IP_HEADER", headerOriginal);
+      definir("NODE_ENV", nodeOriginal);
+    }
+  }
+
+  it("sem proxy declarado, o header do cliente não vira endereço", async () => {
+    await comAmbiente({ header: undefined }, () => {
+      const baldes = new Set<string>();
+      for (let i = 0; i < 50; i++) {
+        baldes.add(ipDaRequisicao(req({ "X-Forwarded-For": `198.51.100.${i}` })));
+      }
+      baldes.add(ipDaRequisicao(req({ "X-Real-IP": "203.0.113.1" })));
+      baldes.add(ipDaRequisicao(req({})));
+
+      // Cinquenta e dois endereços diferentes, um balde só.
+      expect(baldes.size).toBe(1);
+      expect([...baldes][0]).toBe(SEM_PROXY_CONFIAVEL);
+    });
+  });
+
+  it("com proxy declarado, o endereço vem do header nomeado", async () => {
+    await comAmbiente({ header: "x-forwarded-for" }, () => {
+      expect(ipDaRequisicao(req({ "X-Forwarded-For": "203.0.113.5" }))).toBe("203.0.113.5");
+
+      // Numa cadeia, vale o da direita: é o que o proxy da ponta acrescentou.
+      expect(
+        ipDaRequisicao(req({ "X-Forwarded-For": "1.1.1.1, 2.2.2.2, 203.0.113.9" }))
+      ).toBe("203.0.113.9");
+    });
+  });
+
+  it("o header declarado é o único que conta", async () => {
+    await comAmbiente({ header: "cf-connecting-ip" }, () => {
+      const endereco = ipDaRequisicao(
+        req({ "CF-Connecting-IP": "203.0.113.7", "X-Forwarded-For": "198.51.100.1" })
+      );
+
+      expect(endereco).toBe("203.0.113.7");
+      // O x-forwarded-for que o cliente mandou é ignorado neste modo.
+      expect(endereco).not.toBe("198.51.100.1");
+    });
+  });
+
+  it("quem chega sem passar pelo proxy não ganha balde próprio", async () => {
+    await comAmbiente({ header: "cf-connecting-ip" }, () => {
+      // O header declarado não veio: não dá para saber de onde é.
+      expect(ipDaRequisicao(req({ "X-Forwarded-For": "198.51.100.1" }))).toBe(
+        SEM_PROXY_CONFIAVEL
+      );
+      expect(ipDaRequisicao(req({}))).toBe(SEM_PROXY_CONFIAVEL);
+    });
+  });
+
+  it("em produção sem a variável, falha alto em vez de fingir proteção", async () => {
+    await comAmbiente({ header: undefined, producao: true }, () => {
+      expect(() => ipDaRequisicao(req({ "X-Forwarded-For": "198.51.100.1" }))).toThrow(
+        /RATE_LIMIT_IP_HEADER/
+      );
+    });
+  });
+
+  it("variar o header não multiplica os baldes do contador", async () => {
+    await comAmbiente({ header: undefined }, async () => {
+      const limite = { tentativas: 3, janelaSeg: 900 };
+      const respostas: boolean[] = [];
+
+      // Dez tentativas, cada uma jurando vir de um endereço diferente.
+      for (let i = 0; i < 10; i++) {
+        const chave = chaveDeIp("teste-b1a", ipDaRequisicao(req({ "X-Forwarded-For": `10.1.0.${i}` })));
+        respostas.push((await consumir([{ chave, limite }], AGORA)).permitido);
+      }
+
+      // Todas caíram na mesma chave: o teto fechou na quarta.
+      expect(respostas.filter(Boolean)).toHaveLength(3);
+      expect(await prisma.rateLimit.count()).toBe(1);
+    });
+  });
 });
