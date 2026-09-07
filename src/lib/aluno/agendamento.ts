@@ -11,7 +11,12 @@ import {
   somarDiasUTC,
 } from "@/lib/date-utils";
 import { gerarSlots, removerOcupados } from "@/lib/agenda/horarios";
-import { bloqueiaDiaInteiro, ocupacaoDoDia, verificarConflito } from "@/lib/agenda/conflitos";
+import {
+  bloqueiaDiaInteiro,
+  ehSobreposicaoDeHorario,
+  ocupacaoDoDia,
+  verificarConflito,
+} from "@/lib/agenda/conflitos";
 import { STATUS_ATIVOS } from "@/lib/agenda/status";
 import { hojeISO } from "@/lib/fuso";
 import {
@@ -332,6 +337,24 @@ async function garantirQuePodeMarcar(
   }
 }
 
+/**
+ * Grava, e traduz a recusa do banco na mesma mensagem da verificação.
+ *
+ * Entre a checagem e o INSERT cabe outra requisição inteira: era aí que dois
+ * alunos conseguiam o mesmo horário. A EXCLUDE constraint fecha essa janela, e
+ * para o aluno a explicação continua sendo a de sempre.
+ */
+async function comConflitoTraduzido<T>(gravar: () => Promise<T>): Promise<T> {
+  try {
+    return await gravar();
+  } catch (erro) {
+    if (ehSobreposicaoDeHorario(erro)) {
+      throw new AgendamentoRecusadoError("Este horário acabou de ser preenchido.");
+    }
+    throw erro;
+  }
+}
+
 function toMeuAgendamento(
   agendamento: {
     id: string;
@@ -374,18 +397,20 @@ export async function agendarComoAluno(
 
   await garantirQuePodeMarcar(alunoId, personalId, regras, input, agora);
 
-  const agendamento = await prisma.agendamento.create({
-    data: {
-      personalId,
-      alunoId,
-      data: dataUTC(input.data),
-      horaInicio: input.horaInicio,
-      horaFim: input.horaFim,
-      // Nasce à espera do aceite, salvo se o Personal liberou a confirmação.
-      status: regras.confirmacaoAutomatica ? "CONFIRMADO" : "AGENDADO",
-      observacoes: input.observacoes?.trim() || null,
-    },
-  });
+  const agendamento = await comConflitoTraduzido(() =>
+    prisma.agendamento.create({
+      data: {
+        personalId,
+        alunoId,
+        data: dataUTC(input.data),
+        horaInicio: input.horaInicio,
+        horaFim: input.horaFim,
+        // Nasce à espera do aceite, salvo se o Personal liberou a confirmação.
+        status: regras.confirmacaoAutomatica ? "CONFIRMADO" : "AGENDADO",
+        observacoes: input.observacoes?.trim() || null,
+      },
+    })
+  );
 
   // O Personal precisa saber que apareceu horário novo na agenda dele.
   await notificar({
@@ -462,15 +487,17 @@ export async function editarComoAluno(
 
   await garantirQuePodeMarcar(alunoId, personalId, regras, novo, agora, atual.id);
 
-  const reagendado = await prisma.agendamento.update({
-    where: { id: atual.id },
-    data: {
-      data: dataUTC(novo.data),
-      horaInicio: novo.horaInicio,
-      horaFim: novo.horaFim,
-      status: "REAGENDADO",
-    },
-  });
+  const reagendado = await comConflitoTraduzido(() =>
+    prisma.agendamento.update({
+      where: { id: atual.id },
+      data: {
+        data: dataUTC(novo.data),
+        horaInicio: novo.horaInicio,
+        horaFim: novo.horaFim,
+        status: "REAGENDADO",
+      },
+    })
+  );
 
   await notificar({
     tipo: "AGENDAMENTO_REAGENDADO",

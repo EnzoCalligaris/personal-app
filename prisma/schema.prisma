@@ -361,6 +361,14 @@ model Agendamento {
   @@index([personalId, data])
   @@index([alunoId, data])
   @@map("agendamentos")
+
+  /// ATENÇÃO: esta tabela tem uma EXCLUDE constraint que o Prisma não
+  /// representa - "agendamentos_sem_sobreposicao" impede que dois
+  /// atendimentos ATIVOS (AGENDADO, CONFIRMADO, REAGENDADO) do mesmo Personal
+  /// se sobreponham no mesmo dia. Ela é criada pela migration
+  /// 20260909120000_agenda_sem_sobreposicao e é o que fecha a corrida entre
+  /// "verifiquei que estava livre" e "gravei". Não a remova ao editar este
+  /// modelo: o "prisma migrate dev" não a recria sozinho.
 }
 
 model Avaliacao {

@@ -105,3 +105,40 @@ export async function verificarConflito(
   const ocupacao = await ocupacaoDoDia(personalId, dataISO, ignorarId);
   return conflitoEm(ocupacao, horaInicio, horaFim);
 }
+
+/* -------------------------------------------------------------------------
+   A rede embaixo da verificação
+   ------------------------------------------------------------------------- */
+
+/** Código SQLSTATE do PostgreSQL para violação de EXCLUDE constraint. */
+const EXCLUSION_VIOLATION = "23P01";
+
+/** O nome da constraint criada pela migration 20260909120000. */
+const CONSTRAINT = "agendamentos_sem_sobreposicao";
+
+/**
+ * O banco recusou a gravação por sobreposição de horário?
+ *
+ * `verificarConflito` é consultada antes de gravar, mas entre a resposta dela e
+ * o INSERT cabe outra requisição inteira - duas pessoas marcando o mesmo
+ * horário no mesmo instante passavam as duas pela verificação. Quem fecha essa
+ * janela é a EXCLUDE constraint; esta função reconhece a recusa dela para o
+ * chamador traduzir no erro de conflito que já existe, em vez de deixar
+ * escapar um 500 com o SQL cru dentro.
+ *
+ * A mensagem original do PostgreSQL traz o nome da constraint e os valores da
+ * chave: ela fica no log, nunca na resposta.
+ */
+export function ehSobreposicaoDeHorario(erro: unknown): boolean {
+  if (!erro || typeof erro !== "object") return false;
+
+  // O adaptador expõe o SQLSTATE original em `meta.driverAdapterError.cause`.
+  const causa = (erro as { meta?: { driverAdapterError?: { cause?: { code?: unknown } } } }).meta
+    ?.driverAdapterError?.cause;
+  if (causa?.code === EXCLUSION_VIOLATION) return true;
+
+  // Rede de segurança: outro adaptador pode aninhar o código de outro jeito, e
+  // o nome da constraint é nosso.
+  const mensagem = (erro as { message?: unknown }).message;
+  return typeof mensagem === "string" && mensagem.includes(CONSTRAINT);
+}

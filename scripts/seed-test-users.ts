@@ -537,9 +537,11 @@ async function seedDadosDemo() {
       {
         personalId: personal.id,
         alunoId: bruno.id,
-        data: emDias(0, 18),
-        horaInicio: "18:00",
-        horaFim: "19:00",
+        data: emDias(0, 19),
+        // O laço acima já ocupa 18:00-19:00 do Bruno nos dias úteis; este
+        // encosta logo depois para mostrar o rótulo "Reagendado" sem sobrepor.
+        horaInicio: "19:00",
+        horaFim: "20:00",
         status: "REAGENDADO",
       },
       {
@@ -553,9 +555,9 @@ async function seedDadosDemo() {
       {
         personalId: personal.id,
         alunoId: bruno.id,
-        data: emDias(3, 18),
-        horaInicio: "18:00",
-        horaFim: "19:00",
+        data: emDias(3, 19),
+        horaInicio: "19:00",
+        horaFim: "20:00",
         status: "AGENDADO",
       },
     ],

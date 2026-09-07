@@ -109,14 +109,17 @@ beforeAll(async () => {
 
     await createFeedback(personal.personalProfile.id, aluno.alunoProfile.id);
 
-    const dataAgendamento = hojeUTC();
+    // Um atendimento por aluno, sem dois no mesmo horário: o expediente tem
+    // 12 vagas por dia, então a partir do 13º aluno o dia vira o seguinte.
+    // Sobrepor aqui não mediria nada e o banco recusa.
+    const vaga = i % 12;
     await prisma.agendamento.create({
       data: {
         personalId: personal.personalProfile.id,
         alunoId: aluno.alunoProfile.id,
-        data: dataAgendamento,
-        horaInicio: `${String(6 + (i % 12)).padStart(2, "0")}:00`,
-        horaFim: `${String(7 + (i % 12)).padStart(2, "0")}:00`,
+        data: somarDiasUTC(hojeUTC(), Math.floor(i / 12)),
+        horaInicio: `${String(6 + vaga).padStart(2, "0")}:00`,
+        horaFim: `${String(7 + vaga).padStart(2, "0")}:00`,
         status: "CONFIRMADO",
       },
     });

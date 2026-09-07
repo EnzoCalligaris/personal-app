@@ -14,7 +14,7 @@ import { ocupaHorario, STATUS_ATIVOS } from "@/lib/agenda/status";
 import { notificar } from "@/lib/notificacoes/enviar";
 import { REGRAS_PADRAO } from "@/lib/agenda/regras";
 import { gerarSlots, removerOcupados, sobrepoe } from "@/lib/agenda/horarios";
-import { verificarConflito } from "@/lib/agenda/conflitos";
+import { ehSobreposicaoDeHorario, verificarConflito } from "@/lib/agenda/conflitos";
 import { treinosPrevistosPara } from "@/lib/programacoes/queries";
 import type { DiaSemana, StatusAgendamento } from "@/types";
 import type {
@@ -269,6 +269,25 @@ async function garantirHorarioLivre(
   if (conflito.bloqueado) throw new HorarioBloqueadoError();
 }
 
+/**
+ * Grava, e traduz a recusa do banco no mesmo erro da verificação acima.
+ *
+ * A verificação cobre o caso normal e dá a mensagem certa; a EXCLUDE constraint
+ * cobre a corrida entre verificar e gravar, em que duas requisições simultâneas
+ * passavam as duas. Para quem chamou, os dois significam a mesma coisa: o
+ * horário não está mais livre.
+ */
+async function comConflitoTraduzido<T>(gravar: () => Promise<T>): Promise<T> {
+  try {
+    return await gravar();
+  } catch (erro) {
+    if (ehSobreposicaoDeHorario(erro)) {
+      throw new ConflitoDeHorarioError("Este horário acabou de ser preenchido.");
+    }
+    throw erro;
+  }
+}
+
 async function nomeDoPersonal(personalId: string) {
   const personal = await prisma.personalProfile.findUnique({
     where: { id: personalId },
@@ -297,18 +316,20 @@ export async function criarAgendamento(
   await garantirAlunoDoPersonal(personalId, input.alunoId);
   await garantirHorarioLivre(personalId, input.data, input.horaInicio, input.horaFim);
 
-  const agendamento = await prisma.agendamento.create({
-    data: {
-      personalId,
-      alunoId: input.alunoId,
-      data: instanteDoDia(input.data),
-      horaInicio: input.horaInicio,
-      horaFim: input.horaFim,
-      status: input.status ?? "CONFIRMADO",
-      observacoes: input.observacoes?.trim() || null,
-    },
-    include: incluirAluno,
-  });
+  const agendamento = await comConflitoTraduzido(() =>
+    prisma.agendamento.create({
+      data: {
+        personalId,
+        alunoId: input.alunoId,
+        data: instanteDoDia(input.data),
+        horaInicio: input.horaInicio,
+        horaFim: input.horaFim,
+        status: input.status ?? "CONFIRMADO",
+        observacoes: input.observacoes?.trim() || null,
+      },
+      include: incluirAluno,
+    })
+  );
 
   if (ocupaHorario(agendamento.status)) {
     await notificar({
@@ -355,24 +376,26 @@ export async function atualizarAgendamento(
     await garantirHorarioLivre(personalId, dataISO, horaInicio, horaFim, atual.id);
   }
 
-  const agendamento = await prisma.agendamento.update({
-    where: { id: atual.id },
-    data: {
-      ...(input.data !== undefined ? { data: instanteDoDia(input.data) } : {}),
-      ...(input.horaInicio !== undefined ? { horaInicio: input.horaInicio } : {}),
-      ...(input.horaFim !== undefined ? { horaFim: input.horaFim } : {}),
-      ...(input.observacoes !== undefined
-        ? { observacoes: input.observacoes?.trim() || null }
-        : {}),
-      // Mudar de horário sem dizer o status marca como reagendado.
-      ...(input.status !== undefined
-        ? { status: input.status }
-        : mudouHorario
-          ? { status: "REAGENDADO" as const }
+  const agendamento = await comConflitoTraduzido(() =>
+    prisma.agendamento.update({
+      where: { id: atual.id },
+      data: {
+        ...(input.data !== undefined ? { data: instanteDoDia(input.data) } : {}),
+        ...(input.horaInicio !== undefined ? { horaInicio: input.horaInicio } : {}),
+        ...(input.horaFim !== undefined ? { horaFim: input.horaFim } : {}),
+        ...(input.observacoes !== undefined
+          ? { observacoes: input.observacoes?.trim() || null }
           : {}),
-    },
-    include: incluirAluno,
-  });
+        // Mudar de horário sem dizer o status marca como reagendado.
+        ...(input.status !== undefined
+          ? { status: input.status }
+          : mudouHorario
+            ? { status: "REAGENDADO" as const }
+            : {}),
+      },
+      include: incluirAluno,
+    })
+  );
 
   const quando = {
     data: dataDeCalendario(agendamento.data),
