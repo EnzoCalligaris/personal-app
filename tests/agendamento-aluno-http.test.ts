@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { dataUTC } from "@/lib/date-utils";
+import { dataUTC, hojeUTC, paraISO, somarDiasUTC } from "@/lib/date-utils";
 import { dataDeCalendarioDe, horaDeParede } from "@/lib/fuso";
 import type { RegrasAgendamento } from "@/types/agenda";
 import type {
@@ -22,12 +22,15 @@ function comCookie(cookie: string, init?: RequestInit): RequestInit {
 }
 
 /** Data ISO de hoje + N dias, no fuso local (é assim que a agenda raciocina). */
+/**
+ * "X dias depois de hoje", como data de calendário da aplicação.
+ *
+ * O dia de partida é o de São Paulo, não o do relógio de quem roda a suíte:
+ * com o processo em UTC ou em Tóquio, "hoje" seria o dia seguinte a partir
+ * das 21h e os testes passariam a marcar na data errada.
+ */
 function emDias(dias: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + dias);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
+  return paraISO(somarDiasUTC(hojeUTC(), dias));
 }
 
 const DIAS_SEMANA = [

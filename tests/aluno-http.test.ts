@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { diaSemanaDe } from "@/lib/date-utils";
+import { dataUTC, diaSemanaDeDataUTC, hojeUTC, paraISO, somarDiasUTC } from "@/lib/date-utils";
+import { instanteDeParede } from "@/lib/fuso";
 import type {
   AlunoDashboardResponse,
   MeuPerfil,
@@ -31,14 +32,28 @@ function comCookie(cookie: string, init?: RequestInit): RequestInit {
   };
 }
 
-function emDias(dias: number, hora = 12) {
-  const d = new Date();
-  d.setDate(d.getDate() + dias);
-  d.setHours(hora, 0, 0, 0);
-  return d;
+/**
+ * "X dias depois de hoje", como data de calendário da aplicação.
+ *
+ * O dia de partida é o de São Paulo, não o do relógio de quem roda a suíte:
+ * com o processo em UTC ou em Tóquio, a partir das 21h "hoje" já seria o dia
+ * seguinte e os fixtures cairiam na data errada.
+ */
+function diaEmDias(dias: number): string {
+  return paraISO(somarDiasUTC(hojeUTC(), dias));
 }
 
-const hoje = diaSemanaDe(new Date());
+/** O mesmo dia, ancorado para gravar numa coluna DATE. */
+function dataEmDias(dias: number): Date {
+  return dataUTC(diaEmDias(dias));
+}
+
+/** Um instante de verdade: a hora de parede `hora` daquele dia, em São Paulo. */
+function instanteEmDias(dias: number, hora = 12): Date {
+  return instanteDeParede(diaEmDias(dias), `${String(hora).padStart(2, "0")}:00`);
+}
+
+const hoje = diaSemanaDeDataUTC(hojeUTC());
 
 let personal: Awaited<ReturnType<typeof createPersonal>>;
 let ana: Awaited<ReturnType<typeof createAluno>>;
@@ -82,59 +97,59 @@ beforeAll(async () => {
   // A Ana treina hoje; o Bruno também, mas com a ficha dele.
   await createProgramacao(personal.personalProfile.id, ana.alunoProfile.id, {
     nome: "Bloco de hipertrofia",
-    dataInicio: emDias(-7),
+    dataInicio: dataEmDias(-7),
     dias: [{ diaSemana: hoje, treinoId: treinoDaAna.id }],
   });
   await createProgramacao(personal.personalProfile.id, bruno.alunoProfile.id, {
-    dataInicio: emDias(-7),
+    dataInicio: dataEmDias(-7),
     dias: [{ diaSemana: hoje, treinoId: treinoDoBruno.id }],
   });
 
   await createAgendamento(personal.personalProfile.id, ana.alunoProfile.id, {
-    data: emDias(0, 18),
+    data: dataEmDias(0),
     horaInicio: "18:00",
     horaFim: "19:00",
   });
   await createAgendamento(personal.personalProfile.id, ana.alunoProfile.id, {
-    data: emDias(2, 8),
+    data: dataEmDias(2),
     horaInicio: "08:00",
     horaFim: "09:00",
   });
   await createAgendamento(personal.personalProfile.id, ana.alunoProfile.id, {
-    data: emDias(-2, 8),
+    data: dataEmDias(-2),
     horaInicio: "08:00",
     horaFim: "09:00",
     status: "REALIZADO",
   });
   await createAgendamento(personal.personalProfile.id, bruno.alunoProfile.id, {
-    data: emDias(1, 7),
+    data: dataEmDias(1),
     horaInicio: "07:00",
     horaFim: "08:00",
   });
 
   const avaliacaoAntiga = await createAvaliacao(personal.personalProfile.id, ana.alunoProfile.id, {
-    data: emDias(-60),
+    data: dataEmDias(-60),
     peso: 65.2,
     percentualGordura: 27.3,
   });
   await createAvaliacao(personal.personalProfile.id, ana.alunoProfile.id, {
-    data: emDias(-5),
+    data: dataEmDias(-5),
     peso: 62.4,
     percentualGordura: 24.1,
   });
   await createAvaliacao(personal.personalProfile.id, bruno.alunoProfile.id, {
-    data: emDias(-4),
+    data: dataEmDias(-4),
     peso: 81.2,
   });
 
   await createFeedback(personal.personalProfile.id, ana.alunoProfile.id, {
     texto: "Primeiro ciclo fechado, ótima constância.",
     avaliacaoId: avaliacaoAntiga.id,
-    createdAt: emDias(-30),
+    createdAt: instanteEmDias(-30),
   });
   await createFeedback(personal.personalProfile.id, ana.alunoProfile.id, {
     texto: "Aumentar a carga do supino na próxima semana.",
-    createdAt: emDias(-1),
+    createdAt: instanteEmDias(-1),
   });
   await createFeedback(personal.personalProfile.id, bruno.alunoProfile.id, {
     texto: "Feedback do Bruno - a Ana não pode ver isto.",

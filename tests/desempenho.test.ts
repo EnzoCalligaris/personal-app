@@ -10,7 +10,7 @@ import { listarFeedbacks } from "@/lib/feedbacks/queries";
 import { agendaDoPeriodo, horariosLivres } from "@/lib/agenda/queries";
 import { meuDashboard, meuHistorico, meusTreinos, minhaAgenda, minhaEvolucao } from "@/lib/aluno/queries";
 import { meuProgresso } from "@/lib/aluno/progresso";
-import { paraISO, hojeUTC } from "@/lib/date-utils";
+import { paraISO, hojeUTC, somarDiasUTC } from "@/lib/date-utils";
 import { resetDb } from "./db";
 import { createAluno, createAvaliacao, createExercicio, createExecucao, createFeedback, createPersonal, createTreino } from "./factories";
 
@@ -103,15 +103,13 @@ beforeAll(async () => {
     }
 
     for (let a = 0; a < 3; a++) {
-      const data = new Date();
-      data.setDate(data.getDate() - a * 30);
+      const data = somarDiasUTC(hojeUTC(), -a * 30);
       await createAvaliacao(personal.personalProfile.id, aluno.alunoProfile.id, { data });
     }
 
     await createFeedback(personal.personalProfile.id, aluno.alunoProfile.id);
 
-    const dataAgendamento = new Date();
-    dataAgendamento.setHours(0, 0, 0, 0);
+    const dataAgendamento = hojeUTC();
     await prisma.agendamento.create({
       data: {
         personalId: personal.personalProfile.id,
@@ -162,8 +160,7 @@ describe("Detecção de N+1", () => {
       // Mesma FORMA de dados dos dois lados: sem um atendimento aqui, a
       // comparação mediria "vazio x cheio" (ramos que nem chegam a rodar) em
       // vez de crescimento com o volume.
-      const data = new Date();
-      data.setHours(0, 0, 0, 0);
+      const data = hojeUTC();
       await prisma.agendamento.create({
         data: {
           personalId: pequeno.personalProfile.id,

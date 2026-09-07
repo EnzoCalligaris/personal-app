@@ -9,6 +9,7 @@ import {
   paraISO,
   somarDiasUTC,
 } from "@/lib/date-utils";
+import { dataDeCalendarioDe, horaDeParede, instanteDeParede } from "@/lib/fuso";
 import { deMinutos, gerarSlots, paraMinutos, removerOcupados, sobrepoe } from "@/lib/agenda/horarios";
 import {
   instanteDoAtendimento,
@@ -131,7 +132,7 @@ describe("Remoção dos horários ocupados", () => {
 });
 
 describe("Regras do aluno para marcar", () => {
-  const agora = new Date(2026, 8, 6, 10, 0, 0); // 06/09/2026, 10:00 local
+  const agora = instanteDeParede("2026-09-06", "10:00");
   const regras: RegrasAgendamento = { ...REGRAS_PADRAO, antecedenciaMinHoras: 12, janelaDias: 30 };
 
   function daquiA(horas: number) {
@@ -172,7 +173,7 @@ describe("Regras do aluno para marcar", () => {
 });
 
 describe("Regras do aluno para desmarcar", () => {
-  const agora = new Date(2026, 8, 6, 10, 0, 0);
+  const agora = instanteDeParede("2026-09-06", "10:00");
   const regras: RegrasAgendamento = { ...REGRAS_PADRAO, cancelamentoMinHoras: 12 };
 
   function daquiA(horas: number) {
@@ -200,14 +201,14 @@ describe("Regras do aluno para desmarcar", () => {
 });
 
 describe("Instante do atendimento", () => {
-  it("junta data de calendário e hora no fuso local", () => {
+  it("junta data de calendário e hora no fuso da aplicação", () => {
     const inicio = instanteDoAtendimento("2026-09-07", "06:30");
 
-    expect(inicio.getFullYear()).toBe(2026);
-    expect(inicio.getMonth()).toBe(8); // setembro
-    expect(inicio.getDate()).toBe(7);
-    expect(inicio.getHours()).toBe(6);
-    expect(inicio.getMinutes()).toBe(30);
+    // 06:30 em São Paulo são 09:30 em UTC. O instante é um só; o que não pode
+    // variar é o dia e a hora de parede que ele representa.
+    expect(inicio.toISOString()).toBe("2026-09-07T09:30:00.000Z");
+    expect(dataDeCalendarioDe(inicio)).toBe("2026-09-07");
+    expect(horaDeParede(inicio)).toBe("06:30");
   });
 
   it("mantém a ordem cronológica entre horários do mesmo dia", () => {
@@ -276,39 +277,37 @@ describe("Datas de calendário em UTC", () => {
  */
 describe("Instante local x data de calendário", () => {
   it("um instante do fim do dia continua no mesmo dia do calendário", () => {
-    const tarde = new Date(2026, 8, 7, 23, 30, 0);
+    const tarde = instanteDeParede("2026-09-07", "23:30");
     expect(paraISO(dataDoInstante(tarde))).toBe("2026-09-07");
   });
 
   it("um instante do começo do dia também", () => {
-    const cedo = new Date(2026, 8, 7, 0, 15, 0);
+    const cedo = instanteDeParede("2026-09-07", "00:15");
     expect(paraISO(dataDoInstante(cedo))).toBe("2026-09-07");
   });
 
   it("os limites locais de uma data cobrem o dia inteiro e nada além", () => {
     const { de, ate } = limitesDoDiaLocal(dataUTC("2026-09-07"));
 
-    expect(de.getDate()).toBe(7);
-    expect(de.getHours()).toBe(0);
-    expect(ate.getDate()).toBe(7);
-    expect(ate.getHours()).toBe(23);
-    expect(ate.getMinutes()).toBe(59);
+    expect(dataDeCalendarioDe(de)).toBe("2026-09-07");
+    expect(horaDeParede(de)).toBe("00:00");
+    expect(dataDeCalendarioDe(ate)).toBe("2026-09-07");
+    expect(horaDeParede(ate)).toBe("23:59");
 
     // Um atendimento em qualquer hora do dia cai dentro da janela.
-    for (const hora of [0, 6, 12, 23]) {
-      const instante = new Date(2026, 8, 7, hora, 0, 0);
-      expect(instante >= de && instante <= ate).toBe(true);
+    for (const hora of ["00:00", "06:00", "12:00", "23:00"]) {
+      const instante = instanteDeParede("2026-09-07", hora);
+      expect(instante >= de && instante <= ate, hora).toBe(true);
     }
 
     // E o dia seguinte fica de fora.
-    expect(new Date(2026, 8, 8, 0, 0, 0) > ate).toBe(true);
+    expect(instanteDeParede("2026-09-08", "00:00") > ate).toBe(true);
   });
 
   it("a ida e volta entre instante e data é estável", () => {
-    const instante = new Date(2026, 8, 7, 18, 45, 0);
+    const instante = instanteDeParede("2026-09-07", "18:45");
     const { de } = limitesDoDiaLocal(dataDoInstante(instante));
-    expect(de.getFullYear()).toBe(instante.getFullYear());
-    expect(de.getMonth()).toBe(instante.getMonth());
-    expect(de.getDate()).toBe(instante.getDate());
+    expect(dataDeCalendarioDe(de)).toBe(dataDeCalendarioDe(instante));
+    expect(horaDeParede(de)).toBe("00:00");
   });
 });

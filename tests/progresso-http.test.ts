@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
-import { DIAS_SEMANA } from "@/lib/date-utils";
+import { DIAS_SEMANA, dataUTC, hojeUTC, paraISO, somarDiasUTC } from "@/lib/date-utils";
+import { instanteDeParede } from "@/lib/fuso";
 import type { ProgressoResponse } from "@/types/aluno-area";
 import { resetDb } from "./db";
 import {
@@ -14,11 +15,25 @@ import {
 } from "./factories";
 import { get, login, SENHA } from "./http";
 
-function emDias(dias: number, hora = 12) {
-  const d = new Date();
-  d.setDate(d.getDate() + dias);
-  d.setHours(hora, 0, 0, 0);
-  return d;
+/**
+ * "X dias depois de hoje", como data de calendário da aplicação.
+ *
+ * O dia de partida é o de São Paulo, não o do relógio de quem roda a suíte:
+ * com o processo em UTC ou em Tóquio, a partir das 21h "hoje" já seria o dia
+ * seguinte e os fixtures cairiam na data errada.
+ */
+function diaEmDias(dias: number): string {
+  return paraISO(somarDiasUTC(hojeUTC(), dias));
+}
+
+/** O mesmo dia, ancorado para gravar numa coluna DATE. */
+function dataEmDias(dias: number): Date {
+  return dataUTC(diaEmDias(dias));
+}
+
+/** Um instante de verdade: a hora de parede `hora` daquele dia, em São Paulo. */
+function instanteEmDias(dias: number, hora = 12): Date {
+  return instanteDeParede(diaEmDias(dias), `${String(hora).padStart(2, "0")}:00`);
 }
 
 let personal: Awaited<ReturnType<typeof createPersonal>>;
@@ -62,7 +77,7 @@ beforeAll(async () => {
   // Todos os dias são dia de treino: assim a sequência não depende do dia da
   // semana em que a suíte roda.
   await createProgramacao(personal.personalProfile.id, ana.alunoProfile.id, {
-    dataInicio: emDias(-60),
+    dataInicio: dataEmDias(-60),
     dias: DIAS_SEMANA.map((diaSemana) => ({ diaSemana, treinoId: treinoDaAna.id })),
   });
 
@@ -76,17 +91,17 @@ beforeAll(async () => {
   });
 
   await createExecucao(treinoDaAna.id, ana.alunoProfile.id, {
-    dataExecucao: emDias(-10),
+    dataExecucao: instanteEmDias(-10),
     duracaoSeg: 3000,
     itens: [itemSupino("20kg")],
   });
   await createExecucao(treinoDaAna.id, ana.alunoProfile.id, {
-    dataExecucao: emDias(-6),
+    dataExecucao: instanteEmDias(-6),
     duracaoSeg: 3200,
     itens: [itemSupino("22kg")],
   });
   await createExecucao(treinoDaAna.id, ana.alunoProfile.id, {
-    dataExecucao: emDias(-1),
+    dataExecucao: instanteEmDias(-1),
     duracaoSeg: 3100,
     itens: [
       itemSupino("25kg"),
@@ -102,13 +117,13 @@ beforeAll(async () => {
     ],
   });
   await createExecucao(treinoDaAna.id, ana.alunoProfile.id, {
-    dataExecucao: emDias(0, 7),
+    dataExecucao: instanteEmDias(0, 7),
     duracaoSeg: 2900,
     itens: [itemSupino("27kg")],
   });
 
   await createExecucao(treinoDoBruno.id, bruno.alunoProfile.id, {
-    dataExecucao: emDias(-2),
+    dataExecucao: instanteEmDias(-2),
     itens: [{ exercicioId: supino.id, nome: "Supino reto", carga: "60kg" }],
   });
 

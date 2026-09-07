@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { resetDb } from "./db";
 import { createAluno, createPersonal, createTreino } from "./factories";
+import { hojeUTC, paraISO, somarDiasUTC } from "@/lib/date-utils";
 import { dataDeCalendarioDe } from "@/lib/fuso";
 import { BASE_URL, get, login, SENHA } from "./http";
 
@@ -30,12 +31,15 @@ function comCookie(cookie: string, init?: RequestInit): RequestInit {
 }
 
 /** Data de calendário daqui a N dias, no relógio de quem roda o teste. */
+/**
+ * "X dias depois de hoje", como data de calendário da aplicação.
+ *
+ * O dia de partida é o de São Paulo, não o do relógio de quem roda a suíte:
+ * com o processo em UTC ou em Tóquio, "hoje" seria o dia seguinte a partir
+ * das 21h e os testes passariam a marcar na data errada.
+ */
 function emDias(dias: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + dias);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
+  return paraISO(somarDiasUTC(hojeUTC(), dias));
 }
 
 beforeAll(async () => {

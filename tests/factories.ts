@@ -155,7 +155,9 @@ export async function createAgendamento(
     data: {
       personalId,
       alunoId,
-      data: overrides?.data ?? new Date(),
+      // Coluna DATE: o dia de hoje no calendário da aplicação, não o
+      // instante de agora - depois das 21h isso já seria o dia seguinte.
+      data: overrides?.data ?? dataUTC(hojeISO()),
       horaInicio: overrides?.horaInicio ?? "08:00",
       horaFim: overrides?.horaFim ?? "09:00",
       status: overrides?.status ?? "AGENDADO",
@@ -172,7 +174,7 @@ export async function createAvaliacao(
     data: {
       personalId,
       alunoId,
-      data: overrides?.data ?? new Date(),
+      data: overrides?.data ?? dataUTC(hojeISO()),
       peso: overrides?.peso ?? 70,
       percentualGordura: overrides?.percentualGordura ?? 20,
     },

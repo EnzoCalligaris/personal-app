@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
+import { hojeUTC, paraISO, somarDiasUTC } from "@/lib/date-utils";
 import { resetDb } from "./db";
 import {
   createAluno,
@@ -23,12 +24,15 @@ import { BASE_URL, get, login, SENHA } from "./http";
  */
 
 
+/**
+ * "X dias depois de hoje", como data de calendário da aplicação.
+ *
+ * O dia de partida é o de São Paulo, não o do relógio de quem roda a suíte:
+ * com o processo em UTC ou em Tóquio, "hoje" seria o dia seguinte a partir
+ * das 21h e os testes passariam a marcar na data errada.
+ */
 function emDias(dias: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + dias);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
+  return paraISO(somarDiasUTC(hojeUTC(), dias));
 }
 
 type Chamada = { metodo: string; caminho: string; corpo?: unknown };
@@ -145,7 +149,7 @@ beforeAll(async () => {
     data: {
       personalId: personalB.personalProfile.id,
       alunoId: alunoB1.alunoProfile.id,
-      data: new Date(new Date().setHours(0, 0, 0, 0)),
+      data: hojeUTC(),
       horaInicio: "07:00",
       horaFim: "08:00",
       status: "CONFIRMADO",
@@ -184,7 +188,7 @@ beforeAll(async () => {
     data: {
       personalId: personalA.personalProfile.id,
       alunoId: alunoA2.alunoProfile.id,
-      data: new Date(new Date().setHours(0, 0, 0, 0)),
+      data: hojeUTC(),
       horaInicio: "09:00",
       horaFim: "10:00",
       status: "CONFIRMADO",
