@@ -232,6 +232,7 @@ Dockerfile                   Imagem de produção
 | `npm run db:push` | Sincroniza o schema sem criar migration |
 | `npm run db:studio` | Abre o Prisma Studio |
 | `npm run db:seed` | Cria usuários e dados de demonstração |
+| `npm run rate-limit:limpar` | Apaga janelas de tentativa já vencidas (ver Produção) |
 | `npm run supabase:start` | Sobe a stack local do Supabase (Docker) |
 | `npm run supabase:stop` | Para a stack local |
 | `npm run supabase:status` | Reimprime URLs e chaves locais |
@@ -545,7 +546,31 @@ A imagem roda como usuário sem privilégios, não embute segredo nenhum e não 
 - [ ] `npm run db:deploy` aplicado
 - [ ] **Não** rodar `npm run db:seed` nem `npm run ui:estresse` — criam contas com senha pública
 - [ ] HTTPS na frente: o `Strict-Transport-Security` e o cookie `Secure` dependem disso
+- [ ] `RATE_LIMIT_IP_HEADER` apontando para o header que o seu proxy sobrescreve
+- [ ] `npm run rate-limit:limpar` agendado (ver abaixo)
 - [ ] Limite de tentativas de login na borda, se o provedor oferecer
+
+### Limpeza periódica
+
+O limite de tentativas guarda uma linha por endereço ou conta que tentou entrar.
+A janela vencida é reiniciada sozinha no próximo uso, então nada quebra se
+ninguém limpar — mas quem tentou uma vez e nunca mais voltou deixa a linha lá, e
+a tabela cresce com o tempo.
+
+```bash
+npm run rate-limit:limpar
+```
+
+**Uma vez por dia basta**, em qualquer horário: as janelas mais longas duram uma
+hora, então nada do que importa tem mais que isso de idade. Agende do jeito que
+o seu ambiente já oferece — `cron` no host, `CronJob` no Kubernetes, tarefa
+agendada do orquestrador de contêineres.
+
+Com várias instâncias, **basta um agendador chamando**. O comando é seguro para
+rodar concorrentemente: o `DELETE` decide linha a linha pelo vencimento, então
+uma tentativa que chegue durante a limpeza renova a janela e escapa da remoção.
+Não precisa rodar dentro do contêiner web — qualquer processo com a
+`DATABASE_URL` serve.
 
 ### O que já vem configurado
 

@@ -8,12 +8,12 @@ import {
   consumir,
   esquecer,
   ipDaRequisicao,
-  limparExpirados,
   LIMITES,
   normalizarEmail,
   SEM_PROXY_CONFIAVEL,
   verificar,
 } from "@/lib/rate-limit";
+import { limparExpirados } from "../scripts/limpar-rate-limits";
 import { resetDb } from "./db";
 import { createPersonal } from "./factories";
 import { BASE_URL, login, SENHA } from "./http";
@@ -138,17 +138,6 @@ describe("Contagem por janela", () => {
     expect(chaveDeIp("login", "203.0.113.7")).not.toContain("203.0.113.7");
   });
 
-  it("a limpeza remove só as janelas vencidas", async () => {
-    await consumir([{ chave: chaveDeIp("teste", "10.0.0.8"), limite: TRES_POR_MINUTO }], AGORA);
-    await consumir(
-      [{ chave: chaveDeIp("teste", "10.0.0.9"), limite: { tentativas: 3, janelaSeg: 3600 } }],
-      AGORA
-    );
-
-    const removidas = await limparExpirados(emDepois(120));
-    expect(removidas).toBe(1);
-    expect(await prisma.rateLimit.count()).toBe(1);
-  });
 });
 
 describe("Login", () => {
@@ -557,4 +546,118 @@ describe("Endereço confiável", () => {
       expect(await prisma.rateLimit.count()).toBe(1);
     });
   });
+});
+
+/**
+ * A limpeza das janelas vencidas.
+ *
+ * Uma chave só é reaproveitada por quem volta a tentar: o endereço que errou a
+ * senha uma vez e sumiu deixa a linha lá para sempre. Apagá-la é invisível para
+ * o contador - com ou sem a linha, a próxima tentativa começa do um -, e serve
+ * só para a tabela não crescer sem teto.
+ *
+ * O relógio é sempre explícito: "a janela venceu" é dito por parâmetro, nunca
+ * esperando de verdade.
+ */
+describe("Limpeza das janelas vencidas", () => {
+  /** Abre uma janela de `janelaSeg` segundos a partir de `AGORA`. */
+  const abrir = (ip: string, janelaSeg: number, quando = AGORA) =>
+    consumir([{ chave: chaveDeIp("limpeza", ip), limite: { tentativas: 3, janelaSeg } }], quando);
+
+  it("A) apaga a janela que já venceu", async () => {
+    await abrir("10.9.0.1", 60);
+
+    expect(await limparExpirados(emDepois(61))).toBe(1);
+    expect(await prisma.rateLimit.count()).toBe(0);
+  });
+
+  it("B) deixa em paz a janela que ainda vale", async () => {
+    await abrir("10.9.0.2", 60);
+
+    // Um segundo antes de vencer.
+    expect(await limparExpirados(emDepois(59))).toBe(0);
+    expect(await prisma.rateLimit.count()).toBe(1);
+  });
+
+  it("apaga só as vencidas, no meio das que valem", async () => {
+    await abrir("10.9.0.3", 60);
+    await abrir("10.9.0.4", 3600);
+    await abrir("10.9.0.5", 60);
+
+    expect(await limparExpirados(emDepois(120))).toBe(2);
+
+    const sobrou = await prisma.rateLimit.findMany();
+    expect(sobrou).toHaveLength(1);
+    expect(sobrou[0].chave).toBe(chaveDeIp("limpeza", "10.9.0.4"));
+  });
+
+  it("C) a janela renovada antes da limpeza não é apagada", async () => {
+    const ip = "10.9.0.6";
+    const chave = chaveDeIp("limpeza", ip);
+
+    // Uma janela curta, que vence em 60s.
+    await abrir(ip, 60);
+
+    // Alguém volta a tentar depois disso: a janela é reaberta a partir dali.
+    await abrir(ip, 60, emDepois(90));
+
+    // A limpeza roda com o mesmo instante e não encontra nada vencido - é a
+    // condição do próprio DELETE que protege a linha, não a ordem das chamadas.
+    expect(await limparExpirados(emDepois(90))).toBe(0);
+
+    const viva = await prisma.rateLimit.findUnique({ where: { chave } });
+    expect(viva).not.toBeNull();
+    expect(viva!.tentativas).toBe(1);
+  });
+
+  it("limpar durante uma rajada não perde tentativa nem derruba a linha viva", async () => {
+    const ip = "10.9.0.7";
+    const chave = chaveDeIp("limpeza", ip);
+    const limite = { tentativas: 50, janelaSeg: 900 };
+
+    // Dez tentativas e a limpeza ao mesmo tempo, contra a mesma linha.
+    await Promise.all([
+      ...Array.from({ length: 10 }, () => consumir([{ chave, limite }], AGORA)),
+      limparExpirados(AGORA),
+      limparExpirados(AGORA),
+    ]);
+
+    const linha = await prisma.rateLimit.findUnique({ where: { chave } });
+    expect(linha, "a linha viva não pode sumir").not.toBeNull();
+    expect(linha!.tentativas).toBe(10);
+  }, 60000);
+
+  it("D) rodar duas vezes seguidas dá no mesmo", async () => {
+    await abrir("10.9.0.8", 60);
+
+    expect(await limparExpirados(emDepois(61))).toBe(1);
+    expect(await limparExpirados(emDepois(61))).toBe(0);
+    expect(await limparExpirados(emDepois(61))).toBe(0);
+    expect(await prisma.rateLimit.count()).toBe(0);
+  });
+
+  it("E) tabela vazia não é erro", async () => {
+    expect(await prisma.rateLimit.count()).toBe(0);
+    expect(await limparExpirados(AGORA)).toBe(0);
+  });
+
+  it("F) o limite continua valendo depois da limpeza", async () => {
+    const email = personal.user.email;
+
+    // Duas falhas, limpeza, e o contador segue de onde estava.
+    expect((await login(email, "SenhaErrada@123")).status).toBe(401);
+    expect((await login(email, "SenhaErrada@123")).status).toBe(401);
+
+    // Nada venceu ainda: a limpeza não leva nada.
+    expect(await limparExpirados()).toBe(0);
+
+    for (let i = 2; i < LIMITES.LOGIN_CONTA.tentativas; i++) {
+      expect((await login(email, "SenhaErrada@123")).status, `falha ${i + 1}`).toBe(401);
+    }
+    expect((await login(email, "SenhaErrada@123")).status).toBe(429);
+
+    // E o acerto continua zerando a conta.
+    await esquecer([chaveDeConta("login", email)]);
+    expect((await login(email, SENHA)).status).toBe(200);
+  }, 60000);
 });

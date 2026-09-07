@@ -284,19 +284,10 @@ export async function esquecer(chaves: string[]): Promise<void> {
 }
 
 /**
- * Remove janelas já vencidas.
- *
- * Uma chave só é reaproveitada por quem volta a tentar; as demais ficam para
- * trás. Nada quebra por causa disso - a janela vencida é reiniciada no próximo
- * uso -, mas a tabela cresce com o tempo. Uma rotina periódica pode chamar
- * isto; não há nada que precise rodar dentro da requisição.
+ * A limpeza das janelas vencidas mora em `scripts/limpar-rate-limits.ts`, para
+ * rodar por um agendador de fora - nada aqui precisa varrer a tabela dentro da
+ * requisição. Ver `npm run rate-limit:limpar`.
  */
-export async function limparExpirados(antesDe: Date = new Date()): Promise<number> {
-  const { count } = await prisma.rateLimit.deleteMany({
-    where: { janelaFim: { lt: antesDe } },
-  });
-  return count;
-}
 
 /* -------------------------------------------------------------------------
    Resposta
