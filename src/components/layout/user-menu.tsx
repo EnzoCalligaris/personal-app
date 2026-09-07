@@ -12,6 +12,7 @@ import { toast } from "@/lib/toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -97,25 +98,33 @@ export function UserMenu({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" sideOffset={8} className="w-60">
-        <DropdownMenuLabel className="flex flex-col gap-0.5">
-          <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
-          <span className="truncate text-xs font-normal text-muted-foreground">{user.email}</span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href={user.profileHref} />}>
-          <UserRoundIcon />
-          Meu perfil
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="destructive"
-          onClick={handleLogout}
-          disabled={loggingOut}
-          closeOnClick={false}
-        >
-          {loggingOut ? <Spinner size="xs" /> : <LogOutIcon />}
-          {loggingOut ? "Saindo..." : "Sair"}
-        </DropdownMenuItem>
+        {/*
+          O nome e o e-mail são a legenda deste grupo: `DropdownMenuLabel` é o
+          `Menu.GroupLabel` do Base UI, que registra o próprio id no
+          `Menu.Group` para as ações abaixo serem anunciadas como "as opções
+          desta conta". Sem o grupo em volta, ele lança e derruba a árvore.
+        */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex flex-col gap-0.5">
+            <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
+            <span className="truncate text-xs font-normal text-muted-foreground">{user.email}</span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem render={<Link href={user.profileHref} />}>
+            <UserRoundIcon />
+            Meu perfil
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            closeOnClick={false}
+          >
+            {loggingOut ? <Spinner size="xs" /> : <LogOutIcon />}
+            {loggingOut ? "Saindo..." : "Sair"}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
