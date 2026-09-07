@@ -103,15 +103,24 @@ export async function getDashboardData(
     }),
   ]);
 
-  // O "tipo de treino" de cada agendamento é o que a programação do aluno
-  // prevê para aquela data.
+  /**
+   * As duas resoluções de programação dependem da leva acima, mas não uma da
+   * outra: uma olha os agendamentos, a outra a lista de alunos. Esperar a
+   * primeira para começar a segunda era fila à toa.
+   */
   const agendamentos = [...agendaDoDiaRaw, ...proximosAgendamentosRaw];
-  const previstosNaAgenda = await treinosPrevistosPara(
-    agendamentos.map((item) => ({
-      alunoId: item.alunoId,
-      data: item.data,
-    }))
-  );
+  const [previstosNaAgenda, proximosPorAluno] = await Promise.all([
+    treinosPrevistosPara(
+      agendamentos.map((item) => ({
+        alunoId: item.alunoId,
+        data: item.data,
+      }))
+    ),
+    proximosTreinosDeAlunos(
+      alunosRecentesRaw.map((aluno) => aluno.id),
+      hojeData
+    ),
+  ]);
 
   type AgendamentoRaw = (typeof agendaDoDiaRaw)[number];
 
@@ -134,12 +143,6 @@ export async function getDashboardData(
           : null,
     };
   };
-
-  // Próximo treino de cada aluno da lista, resolvido pela programação.
-  const proximosPorAluno = await proximosTreinosDeAlunos(
-    alunosRecentesRaw.map((aluno) => aluno.id),
-    hojeData
-  );
 
   const alunosRecentes: DashboardAluno[] = alunosRecentesRaw.map((aluno) => {
     const proximo = proximosPorAluno.get(aluno.id);

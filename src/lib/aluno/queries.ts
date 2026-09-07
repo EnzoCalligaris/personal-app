@@ -682,47 +682,54 @@ export async function meuDashboard(
   const hoje = dataDoInstante(agora);
   const hojeISO = paraISO(hoje);
 
-  const perfil = await prisma.alunoProfile.findUnique({
-    where: { id: alunoId },
-    include: {
-      user: { select: { name: true, avatarUrl: true } },
-      personal: { select: { user: { select: { name: true, email: true, avatarUrl: true } } } },
-    },
-  });
-
-  if (!perfil) {
-    throw new Error("Perfil de aluno não encontrado.");
-  }
-
-  const [previstoHoje, proximoPrevisto, evolucao, feedbacks] = await Promise.all([
-    treinoPrevistoEm(alunoId, hoje),
-    proximoTreinoDoAluno(alunoId, somarDiasUTC(hoje, 1)),
-    minhaEvolucao(alunoId),
-    meusFeedbacks(alunoId, 1),
-  ]);
-
-  const [diaDeHoje, proximo] = await Promise.all([
-    montarDiaDeTreino(alunoId, previstoHoje, hoje),
-    proximoPrevisto ? montarDiaDeTreino(alunoId, proximoPrevisto, hoje) : Promise.resolve(null),
-  ]);
-
-  // Semana corrente (domingo a sábado) + janela da sequência, resolvidas em
-  // uma consulta só de programações e uma de histórico.
+  // Semana corrente (domingo a sábado) + janela da sequência: as duas saem de
+  // `hoje`, não do resultado de consulta nenhuma.
   const inicioSemana = somarDiasUTC(hoje, -hoje.getUTCDay());
   const fimSemana = somarDiasUTC(inicioSemana, 6);
   const inicioJanela = somarDiasUTC(hoje, -JANELA_SEQUENCIA_DIAS);
 
   const datasJanela = intervaloDeDatas(inicioJanela, fimSemana);
 
-  const [previstos, execucoes] = await Promise.all([
-    treinosPrevistosPara(datasJanela.map((data) => ({ alunoId, data }))),
-    prisma.historicoTreino.findMany({
-      where: {
-        alunoId,
-        dataExecucao: { gte: inicioJanela },
-      },
-      select: { dataExecucao: true },
-    }),
+  /**
+   * Tudo o que depende só de `alunoId` e do dia de hoje sai junto.
+   *
+   * Eram quatro idas ao banco em fila - perfil, depois o previsto, depois a
+   * janela da semana, depois a contagem -, cada uma esperando a anterior sem
+   * precisar de nada dela. O que sobra de fila é o que tem dependência de
+   * verdade: montar o dia precisa saber qual treino está previsto.
+   */
+  const [perfil, previstoHoje, proximoPrevisto, evolucao, feedbacks, previstos, execucoes, totalExecucoes] =
+    await Promise.all([
+      prisma.alunoProfile.findUnique({
+        where: { id: alunoId },
+        include: {
+          user: { select: { name: true, avatarUrl: true } },
+          personal: { select: { user: { select: { name: true, email: true, avatarUrl: true } } } },
+        },
+      }),
+      treinoPrevistoEm(alunoId, hoje),
+      proximoTreinoDoAluno(alunoId, somarDiasUTC(hoje, 1)),
+      minhaEvolucao(alunoId),
+      meusFeedbacks(alunoId, 1),
+      treinosPrevistosPara(datasJanela.map((data) => ({ alunoId, data }))),
+      prisma.historicoTreino.findMany({
+        where: {
+          alunoId,
+          dataExecucao: { gte: inicioJanela },
+        },
+        select: { dataExecucao: true },
+      }),
+      prisma.historicoTreino.count({ where: { alunoId } }),
+    ]);
+
+  if (!perfil) {
+    throw new Error("Perfil de aluno não encontrado.");
+  }
+
+  // Só isto precisava esperar: o dia de treino se monta a partir do previsto.
+  const [diaDeHoje, proximo] = await Promise.all([
+    montarDiaDeTreino(alunoId, previstoHoje, hoje),
+    proximoPrevisto ? montarDiaDeTreino(alunoId, proximoPrevisto, hoje) : Promise.resolve(null),
   ]);
 
   const executadas = new Set(execucoes.map((item) => paraISO(dataDoInstante(item.dataExecucao))));
@@ -738,8 +745,6 @@ export async function meuDashboard(
     (iso) => porData.get(iso)?.tipo === "TREINO"
   ).length;
   const concluidosNaSemana = datasDaSemana.filter((iso) => executadas.has(iso)).length;
-
-  const totalExecucoes = await prisma.historicoTreino.count({ where: { alunoId } });
 
   return {
     aluno: {
