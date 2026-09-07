@@ -539,6 +539,50 @@ docker run --rm -p 3000:3000 --env-file .env.producao personal-app
 
 A imagem roda como usuário sem privilégios, não embute segredo nenhum e não executa migrations.
 
+### Deploy na Vercel
+
+O deploy padrão da Vercel funciona sem alteração de código, com uma exceção que
+precisa ser configurada no painel do projeto.
+
+| Campo | Valor |
+| --- | --- |
+| Framework Preset | Next.js |
+| Node.js Version | 22.x ou superior |
+| **Build Command** | `prisma generate && next build` |
+
+**Por que o Build Command muda.** O client do Prisma é gerado em
+`node_modules/.prisma/client`, que não é versionado, e o projeto não tem
+`postinstall` de propósito — ele quebraria `npm install` num clone recém-feito,
+antes de existir um `.env`. Um `npm ci` limpo na Vercel não gera o client, e o
+`next build` sozinho falha ao importar `@prisma/client`. Localmente nada muda:
+`npm run build` continua sendo só `next build`.
+
+**`DIRECT_URL` é obrigatória no build**, não só para migrations: o
+`prisma.config.ts` a resolve ao ser carregado, então `prisma generate` falha sem
+ela. Cadastre-a como variável do projeto.
+
+#### Variáveis do projeto
+
+As sete do [item 8](#8-variáveis-de-ambiente). Cadastre todas em **Production** e
+em **Preview** — num preview, `NEXT_PUBLIC_SITE_URL` deve apontar para o próprio
+domínio de preview, senão o link de recuperação de senha leva para produção.
+
+- `DATABASE_URL` — a de **connection pooling** (6543). Cada instância abre o
+  próprio pool e a Vercel escala sozinha; sem o pooler o limite do Postgres
+  estoura.
+- `RATE_LIMIT_IP_HEADER=x-forwarded-for` — correto e seguro na Vercel, que
+  sobrescreve esse header e não repassa IPs externos, justamente para impedir
+  falsificação. Sem esta variável as rotas de autenticação falham alto.
+- `NEXT_PUBLIC_SITE_URL` — o domínio **estável** do projeto, não a URL única de
+  cada deploy, que muda a cada build e sairia da allowlist do Supabase.
+
+#### O que a Vercel não faz
+
+- **Migrations.** Aplique de fora, antes de publicar: `npm run db:deploy`.
+- **Seed.** Nunca em produção — cria contas com senha pública.
+
+O `Dockerfile` é ignorado pela Vercel; ele existe para self-host.
+
 ### Antes de publicar
 
 - [ ] `npm test` e `npm run lint` passando
