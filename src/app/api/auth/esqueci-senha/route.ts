@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { urlPublica } from "@/lib/env";
 import { esqueciSenhaSchema } from "@/lib/validations/auth";
 import {
   chaveDeConta,
@@ -32,8 +33,24 @@ export async function POST(request: NextRequest) {
   ]);
   if (!limite.permitido) return respostaDeLimite(limite.esperarSeg);
 
+  /**
+   * O destino do link sai da configuração, nunca da requisição: montá-lo com o
+   * `Host` recebido deixaria um atacante mandar para a caixa da vítima um link
+   * de recuperação apontando para o domínio dele, com um token válido dentro.
+   */
+  let redirectTo: string;
+  try {
+    redirectTo = urlPublica("/auth/callback?next=/redefinir-senha");
+  } catch (erro) {
+    // O detalhe fica no log do servidor; para quem pediu, é só uma falha.
+    console.error("Recuperação de senha sem NEXT_PUBLIC_SITE_URL utilizável:", erro);
+    return NextResponse.json(
+      { error: "Não foi possível processar o pedido agora." },
+      { status: 500 }
+    );
+  }
+
   const supabase = await createClient();
-  const redirectTo = `${request.nextUrl.origin}/auth/callback?next=/redefinir-senha`;
 
   await supabase.auth.resetPasswordForEmail(parsed.data.email, { redirectTo });
 
