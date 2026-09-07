@@ -14,6 +14,7 @@ import { ocupaHorario, STATUS_ATIVOS } from "@/lib/agenda/status";
 import { notificar } from "@/lib/notificacoes/enviar";
 import { REGRAS_PADRAO } from "@/lib/agenda/regras";
 import { gerarSlots, removerOcupados, sobrepoe } from "@/lib/agenda/horarios";
+import { verificarConflito } from "@/lib/agenda/conflitos";
 import { treinosPrevistosPara } from "@/lib/programacoes/queries";
 import type { DiaSemana, StatusAgendamento } from "@/types";
 import type {
@@ -260,35 +261,12 @@ async function garantirHorarioLivre(
 ) {
   if (horaFim <= horaInicio) throw new PeriodoInvalidoError();
 
-  const dia = dataUTC(dataISO);
+  const conflito = await verificarConflito(personalId, dataISO, horaInicio, horaFim, ignorarId);
 
-  const [agendamentos, bloqueios] = await Promise.all([
-    prisma.agendamento.findMany({
-      where: {
-        personalId,
-        data: dia,
-        status: { in: [...STATUS_ATIVOS] },
-        ...(ignorarId ? { id: { not: ignorarId } } : {}),
-      },
-      select: { horaInicio: true, horaFim: true },
-    }),
-    prisma.bloqueio.findMany({
-      where: { personalId, data: dia },
-      select: { horaInicio: true, horaFim: true },
-    }),
-  ]);
-
-  const conflito = agendamentos.some((item) =>
-    sobrepoe(horaInicio, horaFim, item.horaInicio, item.horaFim)
-  );
-  if (conflito) throw new ConflitoDeHorarioError();
-
-  const bloqueado = bloqueios.some((item) =>
-    !item.horaInicio || !item.horaFim
-      ? true
-      : sobrepoe(horaInicio, horaFim, item.horaInicio, item.horaFim)
-  );
-  if (bloqueado) throw new HorarioBloqueadoError();
+  // Na agenda do Personal o choque com outro atendimento vem primeiro: é o que
+  // ele precisa resolver, e o bloqueio é dele mesmo.
+  if (conflito.ocupado) throw new ConflitoDeHorarioError();
+  if (conflito.bloqueado) throw new HorarioBloqueadoError();
 }
 
 async function nomeDoPersonal(personalId: string) {

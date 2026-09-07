@@ -10,7 +10,8 @@ import {
   paraISO,
   somarDiasUTC,
 } from "@/lib/date-utils";
-import { gerarSlots, removerOcupados, sobrepoe } from "@/lib/agenda/horarios";
+import { gerarSlots, removerOcupados } from "@/lib/agenda/horarios";
+import { bloqueiaDiaInteiro, ocupacaoDoDia, verificarConflito } from "@/lib/agenda/conflitos";
 import { STATUS_ATIVOS } from "@/lib/agenda/status";
 import { hojeISO } from "@/lib/fuso";
 import {
@@ -141,28 +142,20 @@ export async function horariosParaAgendar(
   const data = dataUTC(dataISO);
   const diaSemana = diaSemanaDeDataUTC(data);
 
-  const [faixas, ocupados, bloqueios] = await Promise.all([
+  const [faixas, ocupacao] = await Promise.all([
     prisma.disponibilidade.findMany({ where: { personalId, diaSemana } }),
-    prisma.agendamento.findMany({
-      where: {
-        personalId,
-        data,
-        status: { in: [...STATUS_ATIVOS] },
-      },
-      select: { horaInicio: true, horaFim: true },
-    }),
-    prisma.bloqueio.findMany({ where: { personalId, data } }),
+    ocupacaoDoDia(personalId, dataISO),
   ]);
 
   if (faixas.length === 0) return vazio("SEM_TRABALHO", "Seu Personal não atende neste dia.");
-  if (bloqueios.some((bloqueio) => !bloqueio.horaInicio || !bloqueio.horaFim)) {
+  if (ocupacao.bloqueios.some(bloqueiaDiaInteiro)) {
     return vazio("BLOQUEADO", "Seu Personal bloqueou este dia.");
   }
 
   const disputados = [
-    ...ocupados,
-    ...bloqueios
-      .filter((bloqueio) => bloqueio.horaInicio && bloqueio.horaFim)
+    ...ocupacao.agendamentos,
+    ...ocupacao.bloqueios
+      .filter((bloqueio) => !bloqueiaDiaInteiro(bloqueio))
       .map((bloqueio) => ({ horaInicio: bloqueio.horaInicio!, horaFim: bloqueio.horaFim! })),
   ];
 
@@ -315,22 +308,11 @@ async function garantirQuePodeMarcar(
     throw new AgendamentoRecusadoError(MENSAGEM_RECUSA.LIMITE_ATINGIDO);
   }
 
-  const data = dataUTC(input.data);
-
-  const [faixas, ocupados, bloqueios] = await Promise.all([
+  const [faixas, conflito] = await Promise.all([
     prisma.disponibilidade.findMany({
-      where: { personalId, diaSemana: diaSemanaDeDataUTC(data) },
+      where: { personalId, diaSemana: diaSemanaDeDataUTC(dataUTC(input.data)) },
     }),
-    prisma.agendamento.findMany({
-      where: {
-        personalId,
-        data,
-        status: { in: [...STATUS_ATIVOS] },
-        ...(ignorarId ? { id: { not: ignorarId } } : {}),
-      },
-      select: { horaInicio: true, horaFim: true },
-    }),
-    prisma.bloqueio.findMany({ where: { personalId, data } }),
+    verificarConflito(personalId, input.data, input.horaInicio, input.horaFim, ignorarId),
   ]);
 
   // O horário precisa caber inteiro dentro de uma faixa de trabalho: o aluno
@@ -342,17 +324,12 @@ async function garantirQuePodeMarcar(
     throw new AgendamentoRecusadoError("Seu Personal não atende neste horário.");
   }
 
-  const bloqueado = bloqueios.some((bloqueio) =>
-    !bloqueio.horaInicio || !bloqueio.horaFim
-      ? true
-      : sobrepoe(input.horaInicio, input.horaFim, bloqueio.horaInicio, bloqueio.horaFim)
-  );
-  if (bloqueado) throw new AgendamentoRecusadoError("Este horário está bloqueado.");
-
-  const ocupado = ocupados.some((item) =>
-    sobrepoe(input.horaInicio, input.horaFim, item.horaInicio, item.horaFim)
-  );
-  if (ocupado) throw new AgendamentoRecusadoError("Este horário acabou de ser preenchido.");
+  // Para o aluno o bloqueio vem primeiro: "o Personal fechou este horário"
+  // explica melhor do que "acabou de ser preenchido".
+  if (conflito.bloqueado) throw new AgendamentoRecusadoError("Este horário está bloqueado.");
+  if (conflito.ocupado) {
+    throw new AgendamentoRecusadoError("Este horário acabou de ser preenchido.");
+  }
 }
 
 function toMeuAgendamento(
