@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { dataUTC } from "@/lib/date-utils";
+import { hojeISO } from "@/lib/fuso";
 import type { DiaSemana, StatusAgendamento } from "@/types";
 import { createTestAdminClient } from "./supabaseAdmin";
 
@@ -128,7 +130,10 @@ export async function createProgramacao(
       personalId,
       alunoId,
       nome: overrides?.nome ?? "Programação de teste",
-      dataInicio: overrides?.dataInicio ?? new Date(),
+      // `dataInicio` é coluna `date`: passar um instante faz o dia sair da
+      // leitura UTC, e depois das 21:00 no Brasil a programação nasceria
+      // começando amanhã. O padrão é o dia de hoje no fuso da aplicação.
+      dataInicio: overrides?.dataInicio ?? dataUTC(hojeISO()),
       dataFim: overrides?.dataFim ?? null,
       dias: { create: overrides?.dias ?? [] },
     },

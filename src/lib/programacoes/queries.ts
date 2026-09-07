@@ -10,6 +10,7 @@ import {
   intervaloDeDatas,
   paraISO,
 } from "@/lib/date-utils";
+import { dataDeCalendarioDe, limitesDoDia } from "@/lib/fuso";
 import type { DiaSemana } from "@/types";
 import type {
   CalendarioResponse,
@@ -359,17 +360,25 @@ function montarDiaPrevisto(
   };
 }
 
-/** Datas (YYYY-MM-DD) em que houve execução registrada no intervalo. */
+/**
+ * Datas (YYYY-MM-DD) em que houve execução registrada no intervalo.
+ *
+ * `de` e `ate` são datas de calendário; `dataExecucao` é um instante. A ponte
+ * entre os dois passa pelo fuso da aplicação: o dia do aluno vai das 00:00 às
+ * 23:59 em São Paulo, não em UTC. Delimitar em UTC deixava de fora o treino
+ * feito depois das 21:00 - às 21:51 de 06/09 o instante já é 07/09 em UTC, e
+ * a sessão contava para o dia seguinte (ou para dia nenhum).
+ */
 async function execucoesNoPeriodo(alunoId: string, de: Date, ate: Date) {
-  const fimDoDia = new Date(ate);
-  fimDoDia.setUTCHours(23, 59, 59, 999);
+  const inicio = limitesDoDia(paraISO(de)).de;
+  const fim = limitesDoDia(paraISO(ate)).ate;
 
   const historico = await prisma.historicoTreino.findMany({
-    where: { alunoId, dataExecucao: { gte: de, lte: fimDoDia } },
+    where: { alunoId, dataExecucao: { gte: inicio, lte: fim } },
     select: { dataExecucao: true },
   });
 
-  return new Set(historico.map((item) => paraISO(item.dataExecucao)));
+  return new Set(historico.map((item) => dataDeCalendarioDe(item.dataExecucao)));
 }
 
 /** O que o aluno deve treinar em uma data específica. */
