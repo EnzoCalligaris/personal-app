@@ -39,6 +39,11 @@ ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 ENV DIRECT_URL=postgresql://build:build@localhost:5432/build
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Pede o empacotamento `standalone` (ver next.config.ts): é ele que produz o
+# `.next/standalone` que o estágio abaixo copia. Fora daqui o modo fica
+# desligado, porque na Vercel ele quebra o build.
+ENV BUILD_STANDALONE=1
+
 RUN npx prisma generate
 RUN npm run build
 

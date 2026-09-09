@@ -30,8 +30,22 @@ const nextConfig: NextConfig = {
   /**
    * Empacota o servidor com só as dependências que ele usa, em
    * `.next/standalone` - é o que o Dockerfile copia. Não muda `next start`.
+   *
+   * É opt-in porque na Vercel esse modo quebra o build. Lá o build roda com um
+   * adapter, e o Next chama o `onBuildComplete` dele **antes** de montar o
+   * standalone - o adapter então procura `.next/next-server.js.nft.json`, que
+   * aquele passo ainda não escreveu, e o build morre em ENOENT. O próprio Next
+   * registra a incompatibilidade em build/index.js: "in the future
+   * output: standalone might not be allowed if an adapter with onBuildComplete
+   * is configured".
+   *
+   * Desligar por `process.env.VERCEL` seria o caminho óbvio, mas frágil: essa
+   * variável só existe quando o projeto tem "Enable access to System
+   * Environment Variables" marcado, e um deploy com ela desmarcada falharia de
+   * novo, do mesmo jeito. Quem precisa de standalone é o Dockerfile, então é
+   * ele quem pede - e qualquer outro build simplesmente não gera.
    */
-  output: "standalone",
+  output: process.env.BUILD_STANDALONE === "1" ? "standalone" : undefined,
 
   async headers() {
     return [
