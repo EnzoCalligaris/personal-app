@@ -187,12 +187,18 @@ export function AdicionarExercicioModal({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="item-carga">Carga</Label>
+            <Label htmlFor="item-carga">
+              Carga <span className="font-normal text-muted-foreground">(kg)</span>
+            </Label>
             <Input
               id="item-carga"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.5"
               value={carga}
               onChange={(event) => setCarga(event.target.value)}
-              placeholder="40kg"
+              placeholder="ex.: 40"
             />
           </div>
           <div className="flex flex-col gap-2">

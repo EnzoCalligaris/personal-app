@@ -23,3 +23,30 @@ export function cargaEmKg(carga: string | null | undefined): number | null {
 export function formatarCarga(kg: number) {
   return `${kg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg`;
 }
+
+/** Um valor é "só o número" quando não carrega nenhuma unidade ou anotação. */
+const SO_NUMERO = /^\d+(?:[.,]\d+)?$/;
+
+/**
+ * Para exibir a carga na ficha: quem digitou só o número ("40") ganha o
+ * sufixo "kg" ("40 kg"). Carga que já veio com unidade ou anotação própria
+ * ("40kg", "peso corporal", "20kg cada") é mostrada como foi salva - nunca
+ * duplicamos o sufixo por cima do que o Personal já escreveu.
+ */
+export function exibirCarga(carga: string): string {
+  const texto = carga.trim();
+  if (SO_NUMERO.test(texto)) return formatarCarga(Number(texto.replace(",", ".")));
+  return texto;
+}
+
+/**
+ * Para reabrir o campo numérico de carga na edição: extrai o número de uma
+ * carga salva em qualquer formato ("40", "40kg", "40 kg", "22,5") para
+ * preencher o input sem repetir a unidade. Carga sem número reconhecível
+ * (ex.: "peso corporal") volta vazia - o Personal informa um valor novo.
+ */
+export function cargaParaCampoNumerico(carga: string | null | undefined): string {
+  if (!carga) return "";
+  const numero = carga.trim().replace(",", ".").match(/^\d+(?:\.\d+)?/);
+  return numero ? numero[0] : "";
+}

@@ -19,6 +19,7 @@ import {
 import { useApi } from "@/hooks/use-api";
 import { diasProgramadosLabel, formatarData, formatarDataRelativa, plural } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { cargaParaCampoNumerico, exibirCarga } from "@/lib/treinos/carga";
 import type { TreinoDetalhe, TreinoItemExercicio } from "@/types/treino";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -316,7 +317,7 @@ export function TreinoEditor({ treinoId }: { treinoId: string }) {
                     </div>
                     <span className="text-sm text-muted-foreground">
                       {item.series} x {item.repeticoes}
-                      {item.carga ? ` · ${item.carga}` : ""}
+                      {item.carga ? ` · ${exibirCarga(item.carga)}` : ""}
                       {item.descansoSeg !== null ? ` · ${item.descansoSeg}s descanso` : ""}
                     </span>
                     {item.observacoes ? (
@@ -421,7 +422,7 @@ function ItemTreinoModal({
 }) {
   const [series, setSeries] = React.useState(String(item?.series ?? 3));
   const [repeticoes, setRepeticoes] = React.useState(item?.repeticoes ?? "");
-  const [carga, setCarga] = React.useState(item?.carga ?? "");
+  const [carga, setCarga] = React.useState(cargaParaCampoNumerico(item?.carga));
   const [descanso, setDescanso] = React.useState(
     item?.descansoSeg !== null && item?.descansoSeg !== undefined ? String(item.descansoSeg) : ""
   );
@@ -497,12 +498,18 @@ function ItemTreinoModal({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="edit-carga">Carga</Label>
+            <Label htmlFor="edit-carga">
+              Carga <span className="font-normal text-muted-foreground">(kg)</span>
+            </Label>
             <Input
               id="edit-carga"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.5"
               value={carga}
               onChange={(event) => setCarga(event.target.value)}
-              placeholder="40kg"
+              placeholder="ex.: 40"
             />
           </div>
           <div className="flex flex-col gap-2">

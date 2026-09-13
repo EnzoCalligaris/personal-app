@@ -16,6 +16,7 @@ import {
 
 import { useApi } from "@/hooks/use-api";
 import { diasProgramadosLabel, formatarDataRelativa } from "@/lib/format";
+import { exibirCarga } from "@/lib/treinos/carga";
 import { formatarDuracao } from "@/lib/treinos/duracao";
 import type { MeuTreinoDetalhe } from "@/types/aluno-area";
 import type { TreinoItemExercicio } from "@/types/treino";
@@ -174,7 +175,7 @@ function ItemFicha({ item }: { item: TreinoItemExercicio }) {
 
         <div className="flex flex-wrap gap-1.5">
           <Detalhe icon={RepeatIcon} texto={`${item.series} x ${item.repeticoes}`} />
-          {item.carga ? <Detalhe icon={WeightIcon} texto={item.carga} /> : null}
+          {item.carga ? <Detalhe icon={WeightIcon} texto={exibirCarga(item.carga)} /> : null}
           {item.descansoSeg ? (
             <Detalhe icon={TimerIcon} texto={`${item.descansoSeg}s de descanso`} />
           ) : null}
